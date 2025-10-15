@@ -241,14 +241,18 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 trues.append(true)
                 if i % 20 == 0:
                     input = batch_x.detach().cpu().numpy()
-                    reconstructed_input = reconstructed_input.detach().cpu().numpy()
+
+                    if self.args.reconstruction_mode != 'None':
+                        reconstructed_input = reconstructed_input.detach().cpu().numpy()
+                    
                     
                     
                     if test_data.scale and self.args.inverse:
                         shape = input.shape
                         input = test_data.inverse_transform(input.reshape(shape[0] * shape[1], -1)).reshape(shape)
                         # should be the same shape as the original input
-                        reconstructed_input = test_data.inverse_transform(reconstructed_input.reshape(shape[0] * shape[1], -1)).reshape(shape)
+                        if self.args.reconstruction_mode != 'None':
+                            reconstructed_input = test_data.inverse_transform(reconstructed_input.reshape(shape[0] * shape[1], -1)).reshape(shape)
                     # print(f"input shape: {input.shape}, reconstructed_input shape: {reconstructed_input.shape}")
                     # print(input)
                     # print("--------------------------------")
@@ -260,7 +264,8 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     # also plot the reconstructed input vs the original input
                     # 1 for each variable and then merge all to 1 plot
                     # only the inputs, no predictions
-                    visulize_reconstructed_input(input, reconstructed_input, folder_path, i)
+                    if self.args.reconstruction_mode != 'None':
+                        visulize_reconstructed_input(input, reconstructed_input, folder_path, i)
 
         preds = np.concatenate(preds, axis=0)
         trues = np.concatenate(trues, axis=0)

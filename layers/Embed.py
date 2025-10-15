@@ -189,6 +189,19 @@ class PatchEmbedding(nn.Module):
         x = self.value_embedding(x) + self.position_embedding(x)
         return self.dropout(x), n_vars
 
+
+class MiniAttentionPooling(nn.Module):
+    def __init__(self, d_model):
+        super().__init__()
+        self.attn = nn.Linear(d_model, 1)
+
+    def forward(self, x):
+        # x: [batch, seq_len, d_model]
+        attn_scores = self.attn(x)                 
+        attn_weights = F.softmax(attn_scores, dim=1) 
+        pooled = torch.sum(attn_weights * x, dim=1)  
+        return pooled
+
 class Transpose(nn.Module):
     def __init__(self, dim1, dim2):
         super().__init__()
@@ -218,6 +231,7 @@ class PatchEmbedding_Reconstruct(nn.Module):
 
         # Reconstruction mode
         self.reconstruction_mode = reconstruction_mode
+        self.mini_attention_pooling = MiniAttentionPooling(d_model)
         
         
         # latent_dim
@@ -245,8 +259,13 @@ class PatchEmbedding_Reconstruct(nn.Module):
         latent = self.value_embedding(latent) + self.position_embedding(latent)
         # shape here is [bs * nvars x patch_num x d_model]
         
-        reconstruction_latent = latent.mean(dim = 1) # [bs * nvars x d_model]
-        
+        # # plain average pooling
+        # reconstruction_latent = latent.mean(dim = 1) # [bs * nvars x d_model]
+
+
+        # attention pooling
+        reconstruction_latent = self.mini_attention_pooling(latent)
+
         reconstruction_latent = reconstruction_latent.reshape(-1, self.nvars, self.d_model) # [bs x nvars x d_model]
 
         reconstruction_latent = self.latent_mixing(reconstruction_latent) # [bs x nvars x d_model]
@@ -256,7 +275,10 @@ class PatchEmbedding_Reconstruct(nn.Module):
         mu = self.reconstruction_mu(reconstruction_latent) # [bs x nvars x latent_dim]
         logvar = self.reconstruction_logvar(reconstruction_latent) # [bs x nvars x latent_dim]
         sigma = torch.exp(0.5 * logvar) # [bs x nvars x latent_dim]
-        sampled_latent = mu + sigma * torch.randn_like(mu) # [bs x nvars x latent_dim]
+        if self.training:
+            sampled_latent = mu + sigma * torch.randn_like(mu) # [bs x nvars x latent_dim]
+        else:
+            sampled_latent = mu
 
         # Input encoding
         return self.dropout(latent), sampled_latent, self.nvars, mu, logvar
