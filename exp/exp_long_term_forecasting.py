@@ -11,7 +11,7 @@ import warnings
 import numpy as np
 from utils.dtw_metric import dtw, accelerated_dtw
 from utils.augmentation import run_augmentation, run_augmentation_single
-
+import matplotlib.pyplot as plt
 warnings.filterwarnings('ignore')
 
 
@@ -56,9 +56,15 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        if self.args.reconstruction_mode != 'None':
+                            outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        else:
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
-                    outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                    if self.args.reconstruction_mode != 'None':
+                        outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                    else:
+                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 f_dim = -1 if self.args.features == 'MS' else 0
                 outputs = outputs[:, -self.args.pred_len:, f_dim:]
                 batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
@@ -67,6 +73,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 true = batch_y.detach()
 
                 loss = criterion(pred, true)
+                # note, we do not use reconstruction loss and kl loss in validation for fair comparison
 
                 total_loss.append(loss.item())
         total_loss = np.average(total_loss)
@@ -114,20 +121,30 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        if self.args.reconstruction_mode != 'None':
+                            outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        else:
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                         f_dim = -1 if self.args.features == 'MS' else 0
                         outputs = outputs[:, -self.args.pred_len:, f_dim:]
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                         loss = criterion(outputs, batch_y)
+                        if self.args.reconstruction_mode != 'None':
+                            loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
                         train_loss.append(loss.item())
                 else:
-                    outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                    if self.args.reconstruction_mode != 'None':
+                        outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                    else:
+                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                     f_dim = -1 if self.args.features == 'MS' else 0
                     outputs = outputs[:, -self.args.pred_len:, f_dim:]
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     loss = criterion(outputs, batch_y)
+                    if self.args.reconstruction_mode != 'None':
+                        loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
                     train_loss.append(loss.item())
 
                 if (i + 1) % 100 == 0:
@@ -192,9 +209,15 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        if self.args.reconstruction_mode != 'None':
+                            outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        else:
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
-                    outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                    if self.args.reconstruction_mode != 'None':
+                        outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                    else:
+                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                 f_dim = -1 if self.args.features == 'MS' else 0
                 outputs = outputs[:, -self.args.pred_len:, :]
@@ -218,12 +241,26 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 trues.append(true)
                 if i % 20 == 0:
                     input = batch_x.detach().cpu().numpy()
+                    reconstructed_input = reconstructed_input.detach().cpu().numpy()
+                    
+                    
                     if test_data.scale and self.args.inverse:
                         shape = input.shape
                         input = test_data.inverse_transform(input.reshape(shape[0] * shape[1], -1)).reshape(shape)
+                        # should be the same shape as the original input
+                        reconstructed_input = test_data.inverse_transform(reconstructed_input.reshape(shape[0] * shape[1], -1)).reshape(shape)
+                    # print(f"input shape: {input.shape}, reconstructed_input shape: {reconstructed_input.shape}")
+                    # print(input)
+                    # print("--------------------------------")
+                    # print(reconstructed_input)
+                    # ssssssssss
                     gt = np.concatenate((input[0, :, -1], true[0, :, -1]), axis=0)
                     pd = np.concatenate((input[0, :, -1], pred[0, :, -1]), axis=0)
                     visual(gt, pd, os.path.join(folder_path, str(i) + '.pdf'))
+                    # also plot the reconstructed input vs the original input
+                    # 1 for each variable and then merge all to 1 plot
+                    # only the inputs, no predictions
+                    visulize_reconstructed_input(input, reconstructed_input, folder_path, i)
 
         preds = np.concatenate(preds, axis=0)
         trues = np.concatenate(trues, axis=0)
@@ -266,3 +303,22 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         np.save(folder_path + 'true.npy', trues)
 
         return
+
+
+def visulize_reconstructed_input(input, reconstructed_input, folder_path, iter_num):
+    # 1 for each variable and then merge all to 1 plot
+    # only the inputs, no predictions
+    if not os.path.exists(folder_path + '/reconstructed_input/'):
+        os.makedirs(folder_path + '/reconstructed_input/')
+    plots = []
+    plt.close('all')
+    # skip the first variable because it's the target variable by default
+    for j in range(input.shape[2]):
+        gt = input[0, :, j]
+        reconstructed = reconstructed_input[0, :, j]
+        # just save the plot as a png
+        plt.plot(gt, label='GroundTruth')
+        plt.plot(reconstructed, label='Reconstructed')
+        plt.legend()
+        plt.savefig(os.path.join(folder_path + '/reconstructed_input/', str(iter_num) + '_variable_' + str(j) + '.png'))
+        plt.close()

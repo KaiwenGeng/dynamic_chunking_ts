@@ -1,13 +1,16 @@
 export CUDA_VISIBLE_DEVICES=0
 
-model_name=PatchTST
+model_name=Reconstruct_PatchTST
+reconstruction_mode=c_dep
+latent_ratio=0.25
+
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/electricity/ \
   --data_path electricity.csv \
-  --model_id ECL_96_96 \
+  --model_id ECL_96_96_mode_${reconstruction_mode}_latent_${latent_ratio} \
   --model $model_name \
   --data custom \
   --features M \
@@ -21,15 +24,17 @@ python -u run.py \
   --dec_in 321 \
   --c_out 321 \
   --des 'Exp' \
-  --batch_size 16 \
-  --itr 1
+  --batch_size 20 \
+  --itr 1 \
+  --reconstruction_mode $reconstruction_mode \
+  --latent_ratio $latent_ratio
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/electricity/ \
   --data_path electricity.csv \
-  --model_id ECL_96_192 \
+  --model_id ECL_96_192_mode_${reconstruction_mode}_latent_${latent_ratio} \
   --model $model_name \
   --data custom \
   --features M \
@@ -43,15 +48,17 @@ python -u run.py \
   --dec_in 321 \
   --c_out 321 \
   --des 'Exp' \
-  --batch_size 16 \
-  --itr 1
+  --batch_size 20 \
+  --itr 1 \
+  --reconstruction_mode $reconstruction_mode \
+  --latent_ratio $latent_ratio
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/electricity/ \
   --data_path electricity.csv \
-  --model_id ECL_96_336 \
+  --model_id ECL_96_336_mode_${reconstruction_mode}_latent_${latent_ratio} \
   --model $model_name \
   --data custom \
   --features M \
@@ -65,15 +72,17 @@ python -u run.py \
   --dec_in 321 \
   --c_out 321 \
   --des 'Exp' \
-  --batch_size 16 \
-  --itr 1
+  --batch_size 20 \
+  --itr 1 \
+  --reconstruction_mode $reconstruction_mode \
+  --latent_ratio $latent_ratio
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/electricity/ \
   --data_path electricity.csv \
-  --model_id ECL_96_720 \
+  --model_id ECL_96_720_mode_${reconstruction_mode}_latent_${latent_ratio} \
   --model $model_name \
   --data custom \
   --features M \
@@ -87,5 +96,7 @@ python -u run.py \
   --dec_in 321 \
   --c_out 321 \
   --des 'Exp' \
-  --batch_size 16 \
-  --itr 1
+  --batch_size 20 \
+  --itr 1 \
+  --reconstruction_mode $reconstruction_mode \
+  --latent_ratio $latent_ratio

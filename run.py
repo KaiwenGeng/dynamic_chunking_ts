@@ -140,6 +140,13 @@ if __name__ == '__main__':
     # TimeXer
     parser.add_argument('--patch_len', type=int, default=16, help='patch length')
 
+    # With reconstruction
+    parser.add_argument('--reconstruction_mode', type=str, default='None', help='reconstruction mode; if None, no reconstruction; c_dep means channel dependence; c_ind means channel independence')
+    parser.add_argument('--latent_ratio', type=float, default=0.25, help='ratio of compression')
+    parser.add_argument('--reconstruction_loss_weight', type=float, default=0.5, help='weight of vae reconstruction loss')
+    parser.add_argument('--kl_loss_weight', type=float, default=0.01, help='weight of vae kl loss')
+
+
     args = parser.parse_args()
     if torch.cuda.is_available() and args.use_gpu:
         args.device = torch.device('cuda:{}'.format(args.gpu))

@@ -188,3 +188,75 @@ class PatchEmbedding(nn.Module):
         # Input encoding
         x = self.value_embedding(x) + self.position_embedding(x)
         return self.dropout(x), n_vars
+
+class Transpose(nn.Module):
+    def __init__(self, dim1, dim2):
+        super().__init__()
+        self.dim1 = dim1
+        self.dim2 = dim2
+    
+    def forward(self, x):
+        return x.transpose(self.dim1, self.dim2)
+class PatchEmbedding_Reconstruct(nn.Module):
+    def __init__(self, d_model, patch_len, stride, padding, dropout, nvars, latent_dim, reconstruction_mode):
+        super(PatchEmbedding_Reconstruct, self).__init__()
+        # Patching
+        self.patch_len = patch_len
+        self.stride = stride
+        self.padding_patch_layer = nn.ReplicationPad1d((0, padding))
+        self.nvars = nvars
+        self.d_model = d_model
+        # Backbone, Input encoding: projection of feature vectors onto a d-dim vector space
+        self.value_embedding = nn.Linear(patch_len, d_model, bias=False)
+
+        # Positional embedding
+        self.position_embedding = PositionalEmbedding(d_model)
+
+        # Residual dropout
+        self.dropout = nn.Dropout(dropout)
+        self.vae_dropout = nn.Dropout(dropout)
+
+        # Reconstruction mode
+        self.reconstruction_mode = reconstruction_mode
+        
+        
+        # latent_dim
+        self.latent_dim = latent_dim
+        if self.reconstruction_mode == 'c_ind':
+            self.latent_mixing = nn.Identity()
+        elif self.reconstruction_mode == 'c_dep':
+            self.latent_mixing = nn.Sequential(
+                Transpose(1, 2),
+                nn.Linear(self.nvars, self.nvars, bias=False),
+                Transpose(1, 2)
+            )
+        else:
+            raise ValueError(f'Reconstruction mode must be either c_dep or c_ind')
+        self.reconstruction_mu = nn.Linear(d_model, self.latent_dim, bias=False)
+        self.reconstruction_logvar = nn.Linear(d_model, self.latent_dim, bias=False)
+
+    
+    def forward(self, x):
+        # do patching
+        assert x.shape[1] == self.nvars
+        x = self.padding_patch_layer(x)
+        x = x.unfold(dimension=-1, size=self.patch_len, step=self.stride)
+        latent = torch.reshape(x, (x.shape[0] * x.shape[1], x.shape[2], x.shape[3])) 
+        latent = self.value_embedding(latent) + self.position_embedding(latent)
+        # shape here is [bs * nvars x patch_num x d_model]
+        
+        reconstruction_latent = latent.mean(dim = 1) # [bs * nvars x d_model]
+        
+        reconstruction_latent = reconstruction_latent.reshape(-1, self.nvars, self.d_model) # [bs x nvars x d_model]
+
+        reconstruction_latent = self.latent_mixing(reconstruction_latent) # [bs x nvars x d_model]
+
+        reconstruction_latent = self.vae_dropout(reconstruction_latent)
+
+        mu = self.reconstruction_mu(reconstruction_latent) # [bs x nvars x latent_dim]
+        logvar = self.reconstruction_logvar(reconstruction_latent) # [bs x nvars x latent_dim]
+        sigma = torch.exp(0.5 * logvar) # [bs x nvars x latent_dim]
+        sampled_latent = mu + sigma * torch.randn_like(mu) # [bs x nvars x latent_dim]
+
+        # Input encoding
+        return self.dropout(latent), sampled_latent, self.nvars, mu, logvar
