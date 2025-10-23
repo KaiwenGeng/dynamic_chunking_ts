@@ -131,6 +131,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                         loss = criterion(outputs, batch_y)
                         if self.args.reconstruction_mode != 'None':
+                            # print("forecast loss:", loss.item())
+                            # print("reconstruction loss:", reconstruction_loss.item())
+                            # print("kl loss:", kl_loss.item())
                             loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
                         train_loss.append(loss.item())
                 else:
@@ -144,6 +147,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     loss = criterion(outputs, batch_y)
                     if self.args.reconstruction_mode != 'None':
+                        # print("forecast loss:", loss.item())
+                        # print("reconstruction loss:", reconstruction_loss.item())
+                        # print("kl loss:", kl_loss.item())
                         loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
                     train_loss.append(loss.item())
 
