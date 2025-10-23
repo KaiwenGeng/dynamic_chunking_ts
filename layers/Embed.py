@@ -107,22 +107,49 @@ class TimeFeatureEmbedding(nn.Module):
 
 
 class DataEmbedding(nn.Module):
+    """
+    Data Embedding Layer: Combines multiple types of embeddings
+    
+    Combines:
+    1. Value Embedding: Converts raw time series values to d_model dimension
+    2. Positional Embedding: Adds position information (sinusoidal)
+    3. Temporal Embedding: Adds time features (hour, day, month, etc.)
+    """
     def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
         super(DataEmbedding, self).__init__()
 
+        # Value embedding: Convert raw features to d_model dimension
+        # Input: [B, seq_len, c_in] -> Output: [B, seq_len, d_model]
         self.value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model)
+        
+        # Positional embedding: Add position information using sinusoidal encoding
+        # Input: [B, seq_len, d_model] -> Output: [B, seq_len, d_model]
         self.position_embedding = PositionalEmbedding(d_model=d_model)
+        
+        # Temporal embedding: Add time features (hour, day, month, etc.)
+        # Input: [B, seq_len, 4] -> Output: [B, seq_len, d_model]
         self.temporal_embedding = TemporalEmbedding(d_model=d_model, embed_type=embed_type,
                                                     freq=freq) if embed_type != 'timeF' else TimeFeatureEmbedding(
             d_model=d_model, embed_type=embed_type, freq=freq)
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, x_mark):
+        """
+        Forward pass through embedding layer
+        
+        Args:
+            x: [B, seq_len, c_in] - Raw time series data
+            x_mark: [B, seq_len, 4] - Time features (month, day, weekday, hour)
+        Returns:
+            output: [B, seq_len, d_model] - Combined embeddings
+        """
         if x_mark is None:
+            # No time features: only value + positional embedding
             x = self.value_embedding(x) + self.position_embedding(x)
         else:
-            x = self.value_embedding(
-                x) + self.temporal_embedding(x_mark) + self.position_embedding(x)
+            # Full embedding: value + temporal + positional
+            # This is the typical case for time series forecasting
+            x = self.value_embedding(x) + self.temporal_embedding(x_mark) + self.position_embedding(x)
         return self.dropout(x)
 
 

@@ -145,6 +145,10 @@ if __name__ == '__main__':
     parser.add_argument('--latent_ratio', type=float, default=0.25, help='ratio of compression')
     parser.add_argument('--reconstruction_loss_weight', type=float, default=0.5, help='weight of vae reconstruction loss')
     parser.add_argument('--kl_loss_weight', type=float, default=0.01, help='weight of vae kl loss')
+    
+    # Label loss for better training
+    parser.add_argument('--use_label_loss', action='store_true', default=False, help='whether to use label loss for label_len part')
+    parser.add_argument('--label_loss_weight', type=float, default=0.5, help='weight of label loss (for label_len part)')
 
 
     args = parser.parse_args()

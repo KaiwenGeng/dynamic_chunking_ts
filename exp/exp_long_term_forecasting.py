@@ -12,6 +12,7 @@ import numpy as np
 from utils.dtw_metric import dtw, accelerated_dtw
 from utils.augmentation import run_augmentation, run_augmentation_single
 import matplotlib.pyplot as plt
+from torch.utils.tensorboard import SummaryWriter
 warnings.filterwarnings('ignore')
 
 
@@ -66,14 +67,22 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 f_dim = -1 if self.args.features == 'MS' else 0
-                outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-
-                pred = outputs.detach()
-                true = batch_y.detach()
-
-                loss = criterion(pred, true)
-                # note, we do not use reconstruction loss and kl loss in validation for fair comparison
+                
+                # Calculate prediction loss (for pred_len part)
+                pred_outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                pred_targets = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                pred_loss = criterion(pred_outputs, pred_targets)
+                
+                # Calculate label loss (for label_len part) if enabled
+                if self.args.use_label_loss:
+                    label_outputs = outputs[:, :self.args.label_len, f_dim:]
+                    label_targets = batch_y[:, :self.args.label_len, f_dim:].to(self.device)
+                    label_loss = criterion(label_outputs, label_targets)
+                    loss = pred_loss + self.args.label_loss_weight * label_loss
+                else:
+                    loss = pred_loss
+                
+                # Note: we do not use reconstruction loss and kl loss in validation for fair comparison
 
                 total_loss.append(loss.item())
         total_loss = np.average(total_loss)
@@ -89,6 +98,12 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         if not os.path.exists(path):
             os.makedirs(path)
 
+        # ========== Tensorboard设置 ==========
+        log_dir = os.path.join('./runs', setting)
+        writer = SummaryWriter(log_dir=log_dir)
+        print(f"Tensorboard logs saved to: {log_dir}")
+        print(f"To view: tensorboard --logdir=./runs")
+
         time_now = time.time()
 
         train_steps = len(train_loader)
@@ -103,6 +118,8 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
+            train_pred_loss = []  # 只记录预测损失
+            train_label_loss = []  # 只记录标签损失
 
             self.model.train()
             epoch_time = time.time()
@@ -127,15 +144,33 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                         f_dim = -1 if self.args.features == 'MS' else 0
-                        outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                        batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                        loss = criterion(outputs, batch_y)
+                        
+                        # Calculate prediction loss (for pred_len part)
+                        pred_outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                        pred_targets = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                        pred_loss = criterion(pred_outputs, pred_targets)
+                        
+                        # Calculate label loss (for label_len part) if enabled
+                        if self.args.use_label_loss:
+                            label_outputs = outputs[:, :self.args.label_len, f_dim:]
+                            label_targets = batch_y[:, :self.args.label_len, f_dim:].to(self.device)
+                            label_loss = criterion(label_outputs, label_targets)
+                            loss = pred_loss + self.args.label_loss_weight * label_loss
+                        else:
+                            label_loss = torch.tensor(0.0)  # 如果没有label loss，设为0
+                            loss = pred_loss
+                        
+                        # Add reconstruction losses if enabled
                         if self.args.reconstruction_mode != 'None':
                             # print("forecast loss:", loss.item())
                             # print("reconstruction loss:", reconstruction_loss.item())
                             # print("kl loss:", kl_loss.item())
                             loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
+                        
+                        # 分别记录各种损失
                         train_loss.append(loss.item())
+                        train_pred_loss.append(pred_loss.item())
+                        train_label_loss.append(label_loss.item())
                 else:
                     if self.args.reconstruction_mode != 'None':
                         outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
@@ -143,15 +178,33 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                     f_dim = -1 if self.args.features == 'MS' else 0
-                    outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                    batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                    loss = criterion(outputs, batch_y)
+                    
+                    # Calculate prediction loss (for pred_len part)
+                    pred_outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                    pred_targets = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                    pred_loss = criterion(pred_outputs, pred_targets)
+                    
+                    # Calculate label loss (for label_len part) if enabled
+                    if self.args.use_label_loss:
+                        label_outputs = outputs[:, :self.args.label_len, f_dim:]
+                        label_targets = batch_y[:, :self.args.label_len, f_dim:].to(self.device)
+                        label_loss = criterion(label_outputs, label_targets)
+                        loss = pred_loss + self.args.label_loss_weight * label_loss
+                    else:
+                        label_loss = torch.tensor(0.0)  # 如果没有label loss，设为0
+                        loss = pred_loss
+                    
+                    # Add reconstruction losses if enabled
                     if self.args.reconstruction_mode != 'None':
                         # print("forecast loss:", loss.item())
                         # print("reconstruction loss:", reconstruction_loss.item())
                         # print("kl loss:", kl_loss.item())
                         loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
+                    
+                    # 分别记录各种损失
                     train_loss.append(loss.item())
+                    train_pred_loss.append(pred_loss.item())
+                    train_label_loss.append(label_loss.item())
 
                 if (i + 1) % 100 == 0:
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
@@ -171,11 +224,22 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
+            train_pred_loss = np.average(train_pred_loss)
+            train_label_loss = np.average(train_label_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
 
-            print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
-                epoch + 1, train_steps, train_loss, vali_loss, test_loss))
+            print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} (Pred: {3:.7f}, Label: {4:.7f}) Vali Loss: {5:.7f} Test Loss: {6:.7f}".format(
+                epoch + 1, train_steps, train_loss, train_pred_loss, train_label_loss, vali_loss, test_loss))
+            
+            # ========== Tensorboard记录 ==========
+            writer.add_scalar('Loss/Train_Total', train_loss, epoch)
+            writer.add_scalar('Loss/Train_Pred', train_pred_loss, epoch)
+            writer.add_scalar('Loss/Train_Label', train_label_loss, epoch)
+            writer.add_scalar('Loss/Validation', vali_loss, epoch)
+            writer.add_scalar('Loss/Test', test_loss, epoch)
+            writer.add_scalar('Learning_Rate', model_optim.param_groups[0]['lr'], epoch)
+            
             early_stopping(vali_loss, self.model, path)
             if early_stopping.early_stop:
                 print("Early stopping")
@@ -185,6 +249,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
+        
+        # ========== 关闭Tensorboard ==========
+        writer.close()
+        print(f"Tensorboard logs saved to: {log_dir}")
 
         return self.model
 
