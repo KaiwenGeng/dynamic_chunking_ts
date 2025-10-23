@@ -145,10 +145,25 @@ if __name__ == '__main__':
     parser.add_argument('--latent_ratio', type=float, default=0.25, help='ratio of compression')
     parser.add_argument('--reconstruction_loss_weight', type=float, default=0.5, help='weight of vae reconstruction loss')
     parser.add_argument('--kl_loss_weight', type=float, default=0.01, help='weight of vae kl loss')
+    parser.add_argument('--mask_ratio', type=float, default=0.25, help='mask ratio for MAE')
+    parser.add_argument('--result_file', type=str, default='result_long_term_forecast.txt', help='result file name')
     
     # Label loss for better training
     parser.add_argument('--use_label_loss', action='store_true', default=False, help='whether to use label loss for label_len part')
     parser.add_argument('--label_loss_weight', type=float, default=0.5, help='weight of label loss (for label_len part)')
+    
+    # LatentTransformer parameters
+    parser.add_argument('--latent_config', type=str, default='medium', 
+                        help='latent transformer config preset: light, medium, heavy, custom')
+    parser.add_argument('--compression_ratios', type=int, nargs='+', default=None,
+                        help='compression ratios for each layer (e.g., 2 2 2 for 8x compression)')
+    parser.add_argument('--channel_dims', type=int, nargs='+', default=None,
+                        help='channel dimensions for each layer (e.g., 64 128 256)')
+    parser.add_argument('--compression_type', type=str, default='conv', 
+                        choices=['conv', 'pool', 'attention'],
+                        help='compression type for LatentTransformer')
+    parser.add_argument('--latent_dim', type=int, default=None,
+                        help='latent space dimension for LatentTransformer')
 
 
     args = parser.parse_args()
@@ -167,6 +182,100 @@ if __name__ == '__main__':
         device_ids = args.devices.split(',')
         args.device_ids = [int(id_) for id_ in device_ids]
         args.gpu = args.device_ids[0]
+    
+    # LatentTransformer configuration presets
+    if args.model == 'LatentTransformer' or args.model == 'LatentTransformerWithReconstruction':
+        LATENT_CONFIGS = {
+            'light': {
+                'compression_ratios': [2, 2],  # 4x compression
+                'channel_dims': [64, 128],
+                'latent_dim': 64
+            },
+            'medium': {
+                'compression_ratios': [2, 2, 2],  # 8x compression
+                'channel_dims': [64, 128, 256],
+                'latent_dim': 128
+            },
+            'heavy': {
+                'compression_ratios': [2, 2, 2, 2],  # 16x compression
+                'channel_dims': [64, 128, 256, 512],
+                'latent_dim': 256
+            },
+            'custom_4x': {
+                'compression_ratios': [4],  # 4x compression, single layer
+                'channel_dims': [256],
+                'latent_dim': 128
+            },
+            'custom_8x': {
+                'compression_ratios': [4, 2],  # 8x compression
+                'channel_dims': [128, 256],
+                'latent_dim': 128
+            },
+            'custom_16x': {
+                'compression_ratios': [4, 2, 2],  # 16x compression
+                'channel_dims': [128, 256, 512],
+                'latent_dim': 256
+            },
+            'no_compression': {
+                'compression_ratios': [1],  # No compression
+                'channel_dims': [256],
+                'latent_dim': 128
+            },
+            'dual_no_compression': {
+                'compression_ratios': [1],  # No compression with dual encoders
+                'channel_dims': [256],
+                'latent_dim': 128,
+                'compression_type': 'conv'  # Regular conv for encoder, causal for decoder
+            },
+            'causal_4x': {
+                'compression_ratios': [2, 2],  # 4x compression with causality
+                'channel_dims': [64, 128],
+                'latent_dim': 64,
+                'compression_type': 'causal_pool'
+            },
+            'causal_8x': {
+                'compression_ratios': [2, 2, 2],  # 8x compression with causality
+                'channel_dims': [64, 128, 256],
+                'latent_dim': 128,
+                'compression_type': 'causal_pool'
+            },
+            'dual_4x': {
+                'compression_ratios': [2, 2],  # 4x compression with dual encoders
+                'channel_dims': [64, 128],
+                'latent_dim': 64,
+                'compression_type': 'conv'  # Regular conv for encoder, causal for decoder
+            },
+            'dual_8x': {
+                'compression_ratios': [2, 2, 2],  # 8x compression with dual encoders
+                'channel_dims': [64, 128, 256],
+                'latent_dim': 128,
+                'compression_type': 'conv'  # Regular conv for encoder, causal for decoder
+            },
+            'dual_16x': {
+                'compression_ratios': [2, 2, 2, 2],  # 16x compression with dual encoders
+                'channel_dims': [64, 128, 256, 512],
+                'latent_dim': 256,
+                'compression_type': 'conv'  # Regular conv for encoder, causal for decoder
+            }
+        }
+        
+        # Apply preset if not custom values provided
+        if args.latent_config in LATENT_CONFIGS:
+            config = LATENT_CONFIGS[args.latent_config]
+            if args.compression_ratios is None:
+                args.compression_ratios = config['compression_ratios']
+            if args.channel_dims is None:
+                args.channel_dims = config['channel_dims']
+            if args.latent_dim is None:
+                args.latent_dim = config['latent_dim']
+        
+        # Default values if still None
+        if args.compression_ratios is None:
+            args.compression_ratios = [2, 2, 2]
+        if args.channel_dims is None:
+            args.channel_dims = [64, 128, 256]
+        if args.latent_dim is None:
+            args.latent_dim = 128
 
     print('Args in experiment:')
     print_args(args)

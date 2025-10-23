@@ -3,7 +3,7 @@ import torch
 from models import Autoformer, Transformer, TimesNet, Nonstationary_Transformer, DLinear, FEDformer, \
     Informer, LightTS, Reformer, ETSformer, Pyraformer, PatchTST, MICN, Crossformer, FiLM, iTransformer, \
     Koopa, TiDE, FreTS, TimeMixer, TSMixer, SegRNN, MambaSimple, TemporalFusionTransformer, SCINet, PAttn, TimeXer, \
-    WPMixer, MultiPatchFormer, KANAD, Reconstruct_PatchTST
+    WPMixer, MultiPatchFormer, KANAD, Reconstruct_PatchTST, LatentTransformer, LatentTransformerWithReconstruction
 
 
 class Exp_Basic(object):
@@ -41,6 +41,8 @@ class Exp_Basic(object):
             'MultiPatchFormer': MultiPatchFormer,
             'KANAD': KANAD,
             'Reconstruct_PatchTST': Reconstruct_PatchTST,
+            'LatentTransformer': LatentTransformer,
+            'LatentTransformerWithReconstruction': LatentTransformerWithReconstruction,
         }
         if args.model == 'Mamba':
             print('Please make sure you have successfully installed mamba_ssm')

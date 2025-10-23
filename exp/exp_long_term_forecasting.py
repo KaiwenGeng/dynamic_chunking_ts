@@ -80,6 +80,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     label_loss = criterion(label_outputs, label_targets)
                     loss = pred_loss + self.args.label_loss_weight * label_loss
                 else:
+                    label_loss = torch.tensor(0.0)  # 如果没有label loss，设为0
                     loss = pred_loss
                 
                 # Note: we do not use reconstruction loss and kl loss in validation for fair comparison
@@ -364,7 +365,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
         print('mse:{}, mae:{}, dtw:{}'.format(mse, mae, dtw))
-        f = open("result_long_term_forecast.txt", 'a')
+        
+        # Use custom result file if specified, otherwise use default
+        result_file = getattr(self.args, 'result_file', 'result_long_term_forecast.txt')
+        f = open(result_file, 'a')
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}, dtw:{}'.format(mse, mae, dtw))
         f.write('\n')
