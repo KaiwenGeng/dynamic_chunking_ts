@@ -1,0 +1,2 @@
+undefined symbol error:
+FLASH_ATTENTION_FORCE_BUILD=TRUE pip install flash-attn==2.7.4.post1 --no-build-isolation 

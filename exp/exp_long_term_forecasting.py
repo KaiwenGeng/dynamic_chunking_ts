@@ -163,6 +163,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         
                         # Add reconstruction losses if enabled
                         if self.args.reconstruction_mode != 'None':
+                            # print("forecast loss:", loss.item())
+                            # print("reconstruction loss:", reconstruction_loss.item())
+                            # print("kl loss:", kl_loss.item())
                             loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
                         
                         # 分别记录各种损失
@@ -194,6 +197,9 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     
                     # Add reconstruction losses if enabled
                     if self.args.reconstruction_mode != 'None':
+                        # print("forecast loss:", loss.item())
+                        # print("reconstruction loss:", reconstruction_loss.item())
+                        # print("kl loss:", kl_loss.item())
                         loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
                     
                     # 分别记录各种损失

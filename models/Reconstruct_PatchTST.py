@@ -131,6 +131,7 @@ class Model(nn.Module):
         dec_out = dec_out + \
                   (means[:, 0, :].unsqueeze(1).repeat(1, self.pred_len, 1))
 
+
         reconstructed_input = reconstructed_input * \
                   (stdev[:, 0, :].unsqueeze(1).repeat(1, self.seq_len, 1))
         reconstructed_input = reconstructed_input + \

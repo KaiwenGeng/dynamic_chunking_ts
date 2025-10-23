@@ -1,13 +1,16 @@
 export CUDA_VISIBLE_DEVICES=0
 
-model_name=PatchTST
+model_name=Reconstruct_PatchTST
+reconstruction_mode=c_dep
+latent_ratio=0.25
+
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
   --data_path ETTh2.csv \
-  --model_id ETTh2_96_96 \
+  --model_id ETTh2_96_96_mode_${reconstruction_mode}_latent_${latent_ratio}  \
   --model $model_name \
   --data ETTh2 \
   --features M \
@@ -22,14 +25,16 @@ python -u run.py \
   --c_out 7 \
   --des 'Exp' \
   --n_heads 4 \
-  --itr 1
+  --itr 1 \
+  --reconstruction_mode $reconstruction_mode \
+  --latent_ratio $latent_ratio
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
   --data_path ETTh2.csv \
-  --model_id ETTh2_96_192 \
+  --model_id ETTh2_96_192_mode_${reconstruction_mode}_latent_${latent_ratio}  \
   --model $model_name \
   --data ETTh2 \
   --features M \
@@ -44,14 +49,16 @@ python -u run.py \
   --c_out 7 \
   --des 'Exp' \
   --n_heads 4 \
-  --itr 1
+  --itr 1 \
+  --reconstruction_mode $reconstruction_mode \
+  --latent_ratio $latent_ratio
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
   --data_path ETTh2.csv \
-  --model_id ETTh2_96_336 \
+  --model_id ETTh2_96_336_mode_${reconstruction_mode}_latent_${latent_ratio}  \
   --model $model_name \
   --data ETTh2 \
   --features M \
@@ -66,14 +73,16 @@ python -u run.py \
   --c_out 7 \
   --des 'Exp' \
   --n_heads 4 \
-  --itr 1
+  --itr 1 \
+  --reconstruction_mode $reconstruction_mode \
+  --latent_ratio $latent_ratio
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
   --data_path ETTh2.csv \
-  --model_id ETTh2_96_720 \
+  --model_id ETTh2_96_720_mode_${reconstruction_mode}_latent_${latent_ratio}  \
   --model $model_name \
   --data ETTh2 \
   --features M \
@@ -88,4 +97,6 @@ python -u run.py \
   --c_out 7 \
   --des 'Exp' \
   --n_heads 4 \
-  --itr 1
+  --itr 1 \
+  --reconstruction_mode $reconstruction_mode \
+  --latent_ratio $latent_ratio
