@@ -56,8 +56,8 @@ class Model(nn.Module):
         padding = stride
 
         # vae parameters
-        self.latent_dim = int(configs.latent_ratio * configs.seq_len)
-        print(configs.latent_ratio, configs.seq_len, self.latent_dim)
+        self.latent_dim = int(configs.compress_ratio * configs.seq_len)
+        print(configs.compress_ratio, configs.seq_len, self.latent_dim)
         self.reconstruction_mode = configs.reconstruction_mode
         self.vae_decoder = VAEDecoder(self.latent_dim, configs.seq_len)
 

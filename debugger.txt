@@ -1,2 +1,7 @@
 undefined symbol error:
 FLASH_ATTENTION_FORCE_BUILD=TRUE pip install flash-attn==2.7.4.post1 --no-build-isolation 
+
+"T": Attention + MLP
+"t": Attention only
+"M": Mamba2 + MLP
+"m": Mamba2 only

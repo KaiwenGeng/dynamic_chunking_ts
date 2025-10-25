@@ -2,7 +2,7 @@ export CUDA_VISIBLE_DEVICES=0
 
 model_name=Reconstruct_PatchTST
 reconstruction_mode=c_dep
-latent_ratio=0.25
+compress_ratio=0.25
 
 
 python -u run.py \
@@ -10,7 +10,7 @@ python -u run.py \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
   --data_path ETTm2.csv \
-  --model_id ETTm2_96_96_mode_${reconstruction_mode}_latent_${latent_ratio}  \
+  --model_id ETTm2_96_96_mode_${reconstruction_mode}_latent_${compress_ratio}  \
   --model $model_name \
   --data ETTm2 \
   --features M \
@@ -28,14 +28,14 @@ python -u run.py \
   --batch_size 32 \
   --itr 1 \
   --reconstruction_mode $reconstruction_mode \
-  --latent_ratio $latent_ratio
+  --compress_ratio $compress_ratio
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
   --data_path ETTm2.csv \
-  --model_id ETTm2_96_192_mode_${reconstruction_mode}_latent_${latent_ratio}  \
+  --model_id ETTm2_96_192_mode_${reconstruction_mode}_latent_${compress_ratio}  \
   --model $model_name \
   --data ETTm2 \
   --features M \
@@ -53,14 +53,14 @@ python -u run.py \
   --batch_size 128 \
   --itr 1 \
   --reconstruction_mode $reconstruction_mode \
-  --latent_ratio $latent_ratio
+  --compress_ratio $compress_ratio
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
   --data_path ETTm2.csv \
-  --model_id ETTm2_96_336_mode_${reconstruction_mode}_latent_${latent_ratio}  \
+  --model_id ETTm2_96_336_mode_${reconstruction_mode}_latent_${compress_ratio}  \
   --model $model_name \
   --data ETTm2 \
   --features M \
@@ -78,14 +78,14 @@ python -u run.py \
   --batch_size 32 \
   --itr 1 \
   --reconstruction_mode $reconstruction_mode \
-  --latent_ratio $latent_ratio
+  --compress_ratio $compress_ratio
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
   --data_path ETTm2.csv \
-  --model_id ETTm2_96_720_mode_${reconstruction_mode}_latent_${latent_ratio}  \
+  --model_id ETTm2_96_720_mode_${reconstruction_mode}_latent_${compress_ratio}  \
   --model $model_name \
   --data ETTm2 \
   --features M \
@@ -103,4 +103,4 @@ python -u run.py \
   --batch_size 128 \
   --itr 1 \
   --reconstruction_mode $reconstruction_mode \
-  --latent_ratio $latent_ratio
+  --compress_ratio $compress_ratio

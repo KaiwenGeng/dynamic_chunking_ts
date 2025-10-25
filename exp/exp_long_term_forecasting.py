@@ -13,12 +13,14 @@ from utils.dtw_metric import dtw, accelerated_dtw
 from utils.augmentation import run_augmentation, run_augmentation_single
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
+from hnet.utils.train import load_balancing_loss
 warnings.filterwarnings('ignore')
 
 
 class Exp_Long_Term_Forecast(Exp_Basic):
     def __init__(self, args):
         super(Exp_Long_Term_Forecast, self).__init__(args)
+        self.model_name = self.args.model
 
     def _build_model(self):
         model = self.model_dict[self.args.model].Model(self.args).float()
@@ -60,12 +62,19 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         if self.args.reconstruction_mode != 'None':
                             outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                         else:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                            if self.model_name == 'Hnet':
+                                outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                            else:
+                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                            
                 else:
                     if self.args.reconstruction_mode != 'None':
                         outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                     else:
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        if self.model_name == 'Hnet':
+                            outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        else:
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 f_dim = -1 if self.args.features == 'MS' else 0
                 
                 # Calculate prediction loss (for pred_len part)
@@ -82,7 +91,6 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 else:
                     label_loss = torch.tensor(0.0)  # 如果没有label loss，设为0
                     loss = pred_loss
-                
                 # Note: we do not use reconstruction loss and kl loss in validation for fair comparison
 
                 total_loss.append(loss.item())
@@ -142,7 +150,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         if self.args.reconstruction_mode != 'None':
                             outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                         else:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                            if self.model_name == 'Hnet':
+                                outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                            else:
+                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                         f_dim = -1 if self.args.features == 'MS' else 0
                         
@@ -176,7 +187,10 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     if self.args.reconstruction_mode != 'None':
                         outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                     else:
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        if self.model_name == 'Hnet':
+                            outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        else:
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                     f_dim = -1 if self.args.features == 'MS' else 0
                     

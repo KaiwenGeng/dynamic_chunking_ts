@@ -2,6 +2,7 @@ import argparse
 import os
 import torch
 import torch.backends
+import json
 from exp.exp_long_term_forecasting import Exp_Long_Term_Forecast
 from exp.exp_imputation import Exp_Imputation
 from exp.exp_short_term_forecasting import Exp_Short_Term_Forecast
@@ -142,7 +143,7 @@ if __name__ == '__main__':
 
     # With reconstruction
     parser.add_argument('--reconstruction_mode', type=str, default='None', help='reconstruction mode; if None, no reconstruction; c_dep means channel dependence; c_ind means channel independence')
-    parser.add_argument('--latent_ratio', type=float, default=0.25, help='ratio of compression')
+    parser.add_argument('--compress_ratio', type=float, default=0.25, help='ratio of compression')
     parser.add_argument('--reconstruction_loss_weight', type=float, default=0.5, help='weight of vae reconstruction loss')
     parser.add_argument('--kl_loss_weight', type=float, default=0.01, help='weight of vae kl loss')
     parser.add_argument('--mask_ratio', type=float, default=0.25, help='mask ratio for MAE')
@@ -164,6 +165,32 @@ if __name__ == '__main__':
                         help='compression type for LatentTransformer')
     parser.add_argument('--latent_dim', type=int, default=None,
                         help='latent space dimension for LatentTransformer')
+
+
+    # HNet specific parameters (hierarchical sequence model)
+    parser.add_argument('--hnet_arch_layout', type=str, default='["m1", ["m1", ["T1"], "m1"], "m1"]',
+                        help='JSON list describing hierarchy, e.g., ["m1", ["m1", ["T1"], "m1"], "m1"]')
+    parser.add_argument('--hnet_d_model', type=int, nargs='+', default=[32, 64, 128],
+                        help='Per-stage model widths (non-decreasing); first must match input embedding dim')
+    parser.add_argument('--hnet_d_intermediate', type=int, nargs='+', default=[0, 128, 192],
+                        help='Per-stage MLP hidden dims (used by uppercase blocks T/M); 0 disables MLP')
+    # SSM (Mamba2) parameters
+    parser.add_argument('--hnet_ssm_chunk_size', type=int, default=256,
+                        help='Mamba kernel tile length (performance knob)')
+    parser.add_argument('--hnet_ssm_d_conv', type=int, default=4,
+                        help='Depthwise conv kernel size before SSM')
+    parser.add_argument('--hnet_ssm_d_state', type=int, default=32,
+                        help='SSM state dimension')
+    parser.add_argument('--hnet_ssm_expand', type=int, default=2,
+                        help='Channel expansion factor inside Mamba')
+    # Attention parameters
+    parser.add_argument('--hnet_attn_num_heads', type=int, nargs='+', default=[2, 4, 8],
+                        help='Per-stage attention head counts')
+    parser.add_argument('--hnet_attn_rotary_emb_dim', type=int, nargs='+', default=[8, 8, 8],
+                        help='Per-stage RoPE dimensions (<= per-head dim)')
+    parser.add_argument('--hnet_attn_window_size', type=int, nargs='+', default=[-1, -1, -1],
+                        help='Per-stage causal window; -1 for full context')
+
 
 
     args = parser.parse_args()
