@@ -174,6 +174,8 @@ if __name__ == '__main__':
                         help='Per-stage model widths (non-decreasing); first must match input embedding dim')
     parser.add_argument('--hnet_d_intermediate', type=int, nargs='+', default=[0, 128, 192],
                         help='Per-stage MLP hidden dims (used by uppercase blocks T/M); 0 disables MLP')
+    parser.add_argument('--hnet_ratio_loss_weight', type=float, default=0.02, help='weight of ratio / boundary loss')
+    parser.add_argument('--hnet_num_experts', type=int, default=4, help='number of experts, aka the compression ratio')
     # SSM (Mamba2) parameters
     parser.add_argument('--hnet_ssm_chunk_size', type=int, default=256,
                         help='Mamba kernel tile length (performance knob)')
@@ -321,9 +323,13 @@ if __name__ == '__main__':
         Exp = Exp_Long_Term_Forecast
 
     if args.is_training:
+        # print the total number of parameters
         for ii in range(args.itr):
             # setting record of experiments
             exp = Exp(args)  # set experiments
+            if ii == 0:
+                total_params = sum(p.numel() for p in exp.model.parameters())
+                print(f'Total number of parameters: {total_params}')
             setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_expand{}_dc{}_fc{}_eb{}_dt{}_{}_{}'.format(
                 args.task_name,
                 args.model_id,

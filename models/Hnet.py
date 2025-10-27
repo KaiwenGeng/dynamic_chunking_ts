@@ -46,14 +46,15 @@ class Model(nn.Module):
         assert self.label_len == self.seq_len, "Label len must be the same as the seq len"
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
+        assert self.label_len == self.seq_len, "Label len must be the same as the seq len"
         assert torch.equal(x_enc, x_dec[:, :self.label_len, :]), "x_enc must be the same as the first part of x_dec"
         assert torch.equal(x_mark_enc, x_mark_dec[:,:self.label_len,:]) , "x_mark_enc must be the same as the first part of x_mark_dec"
         mean_enc = x_enc.mean(1, keepdim=True).detach()
         x_enc = x_enc - mean_enc
-        x_dec = x_dec - mean_enc
+        x_dec[:, :self.label_len, :] = x_dec[:, :self.label_len, :] - mean_enc
         std_enc = torch.sqrt(torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5).detach()
         x_enc = x_enc / std_enc
-        x_dec = x_dec / std_enc
+        x_dec[:, :self.label_len, :] = x_dec[:, :self.label_len, :] / std_enc
         hnet_input = self.embedding(x_dec, x_mark_dec)
         # convert the hnet_input to bfloat16
         hnet_input = hnet_input.to(torch.bfloat16)
@@ -76,7 +77,7 @@ class Model(nn.Module):
 
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
-        if self.task_name in ['short_term_forecast', 'long_term_forecast']:
+        if self.task_name in ['long_term_forecast', 'short_term_forecast']:
             x_out, boundary_predictions = self.forecast(x_enc, x_mark_enc, x_dec, x_mark_dec)
             return x_out[:, -self.pred_len:, :], boundary_predictions
 

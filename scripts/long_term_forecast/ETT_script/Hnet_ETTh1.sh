@@ -21,12 +21,14 @@ python -u run.py \
   --des 'Exp' \
   --itr 1 \
   --hnet_arch_layout '["m1", ["m1", ["T1"], "m1"], "m1"]' \
-  --hnet_d_model 64 64 96 \
+  --hnet_d_model 128 192 256 \
   --hnet_d_intermediate 0 128 192 \
   --hnet_ssm_chunk_size 256 \
   --hnet_ssm_d_conv 4 \
-  --hnet_ssm_d_state 128 \
-  --hnet_ssm_expand 2 \
-  --hnet_attn_num_heads 8 8 12 \
+  --hnet_ssm_d_state 64 \
+  --hnet_ssm_expand 4 \
+  --hnet_attn_num_heads 2 2 2 \
   --hnet_attn_rotary_emb_dim 8 8 8 \
-  --hnet_attn_window_size -1 -1 -1
+  --hnet_attn_window_size -1 -1 -1 \
+  --hnet_num_experts 4 \
+  --hnet_ratio_loss_weight 0.02

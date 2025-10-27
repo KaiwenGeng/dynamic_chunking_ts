@@ -5,3 +5,8 @@ FLASH_ATTENTION_FORCE_BUILD=TRUE pip install flash-attn==2.7.4.post1 --no-build-
 "t": Attention only
 "M": Mamba2 + MLP
 "m": Mamba2 only
+
+
+for all the dmodels, ensure:
+(d_model*expand/headdim) % 8 == 0
+default headdim in mamba2 is 64

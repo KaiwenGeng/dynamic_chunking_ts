@@ -179,6 +179,11 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                             # print("kl loss:", kl_loss.item())
                             loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
                         
+                        if self.model_name == 'Hnet':
+                            ratioloss = 0
+                            for obj in boundary_predictions:
+                                ratioloss += self.args.hnet_ratio_loss_weight * load_balancing_loss(obj, self.args.hnet_num_experts)
+                            loss += ratioloss
                         # 分别记录各种损失
                         train_loss.append(loss.item())
                         train_pred_loss.append(pred_loss.item())
@@ -216,6 +221,11 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         # print("kl loss:", kl_loss.item())
                         loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
                     
+                    if self.model_name == 'Hnet':
+                        ratioloss = 0
+                        for obj in boundary_predictions:
+                            ratioloss += self.args.hnet_ratio_loss_weight * load_balancing_loss(obj, self.args.hnet_num_experts)
+                        loss += ratioloss
                     # 分别记录各种损失
                     train_loss.append(loss.item())
                     train_pred_loss.append(pred_loss.item())
@@ -301,12 +311,18 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         if self.args.reconstruction_mode != 'None':
                             outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                         else:
-                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                            if self.model_name == 'Hnet':
+                                outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                            else:
+                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
                     if self.args.reconstruction_mode != 'None':
                         outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                     else:
-                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        if self.model_name == 'Hnet':
+                            outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                        else:
+                            outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                 f_dim = -1 if self.args.features == 'MS' else 0
                 outputs = outputs[:, -self.args.pred_len:, :]
