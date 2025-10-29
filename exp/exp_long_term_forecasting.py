@@ -1,6 +1,6 @@
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
-from utils.tools import EarlyStopping, adjust_learning_rate, visual
+from utils.tools import EarlyStopping, adjust_learning_rate, visual, visual_boundary
 from utils.metrics import metric
 import torch
 import torch.nn as nn
@@ -11,8 +11,6 @@ import warnings
 import numpy as np
 from utils.dtw_metric import dtw, accelerated_dtw
 from utils.augmentation import run_augmentation, run_augmentation_single
-import matplotlib.pyplot as plt
-from torch.utils.tensorboard import SummaryWriter
 from hnet.utils.train import load_balancing_loss
 warnings.filterwarnings('ignore')
 
@@ -20,7 +18,8 @@ warnings.filterwarnings('ignore')
 class Exp_Long_Term_Forecast(Exp_Basic):
     def __init__(self, args):
         super(Exp_Long_Term_Forecast, self).__init__(args)
-        self.model_name = self.args.model
+        self.model_name = args.model
+
 
     def _build_model(self):
         model = self.model_dict[self.args.model].Model(self.args).float()
@@ -59,39 +58,23 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if self.args.reconstruction_mode != 'None':
-                            outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                        else:
-                            if self.model_name == 'Hnet':
-                                outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                            else:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                            
-                else:
-                    if self.args.reconstruction_mode != 'None':
-                        outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                    else:
-                        if self.model_name == 'Hnet':
+                        if self.model_name == 'HNet':
                             outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                         else:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                f_dim = -1 if self.args.features == 'MS' else 0
-                
-                # Calculate prediction loss (for pred_len part)
-                pred_outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                pred_targets = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                pred_loss = criterion(pred_outputs, pred_targets)
-                
-                # Calculate label loss (for label_len part) if enabled
-                if self.args.use_label_loss:
-                    label_outputs = outputs[:, :self.args.label_len, f_dim:]
-                    label_targets = batch_y[:, :self.args.label_len, f_dim:].to(self.device)
-                    label_loss = criterion(label_outputs, label_targets)
-                    loss = pred_loss + self.args.label_loss_weight * label_loss
                 else:
-                    label_loss = torch.tensor(0.0)  # 如果没有label loss，设为0
-                    loss = pred_loss
-                # Note: we do not use reconstruction loss and kl loss in validation for fair comparison
+                    if self.model_name == 'HNet':
+                        outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                    else:
+                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                f_dim = -1 if self.args.features == 'MS' else 0
+                outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+
+                pred = outputs.detach()
+                true = batch_y.detach()
+
+                loss = criterion(pred, true)
 
                 total_loss.append(loss.item())
         total_loss = np.average(total_loss)
@@ -107,12 +90,6 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         if not os.path.exists(path):
             os.makedirs(path)
 
-        # ========== Tensorboard设置 ==========
-        log_dir = os.path.join('./runs', setting)
-        writer = SummaryWriter(log_dir=log_dir)
-        print(f"Tensorboard logs saved to: {log_dir}")
-        print(f"To view: tensorboard --logdir=./runs")
-
         time_now = time.time()
 
         train_steps = len(train_loader)
@@ -127,8 +104,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         for epoch in range(self.args.train_epochs):
             iter_count = 0
             train_loss = []
-            train_pred_loss = []  # 只记录预测损失
-            train_label_loss = []  # 只记录标签损失
+            ratio_loss = []
 
             self.model.train()
             epoch_time = time.time()
@@ -147,89 +123,48 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if self.args.reconstruction_mode != 'None':
-                            outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                        else:
-                            if self.model_name == 'Hnet':
-                                outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                            else:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-
-                        f_dim = -1 if self.args.features == 'MS' else 0
-                        
-                        # Calculate prediction loss (for pred_len part)
-                        pred_outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                        pred_targets = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                        pred_loss = criterion(pred_outputs, pred_targets)
-                        
-                        # Calculate label loss (for label_len part) if enabled
-                        if self.args.use_label_loss:
-                            label_outputs = outputs[:, :self.args.label_len, f_dim:]
-                            label_targets = batch_y[:, :self.args.label_len, f_dim:].to(self.device)
-                            label_loss = criterion(label_outputs, label_targets)
-                            loss = pred_loss + self.args.label_loss_weight * label_loss
-                        else:
-                            label_loss = torch.tensor(0.0)  # 如果没有label loss，设为0
-                            loss = pred_loss
-                        
-                        # Add reconstruction losses if enabled
-                        if self.args.reconstruction_mode != 'None':
-                            # print("forecast loss:", loss.item())
-                            # print("reconstruction loss:", reconstruction_loss.item())
-                            # print("kl loss:", kl_loss.item())
-                            loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
-                        
-                        if self.model_name == 'Hnet':
-                            ratioloss = 0
-                            for obj in boundary_predictions:
-                                ratioloss += self.args.hnet_ratio_loss_weight * load_balancing_loss(obj, self.args.hnet_num_experts)
-                            loss += ratioloss
-                        # 分别记录各种损失
-                        train_loss.append(loss.item())
-                        train_pred_loss.append(pred_loss.item())
-                        train_label_loss.append(label_loss.item())
-                else:
-                    if self.args.reconstruction_mode != 'None':
-                        outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                    else:
-                        if self.model_name == 'Hnet':
+                        if self.model_name == 'HNet':
                             outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                         else:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
-                    f_dim = -1 if self.args.features == 'MS' else 0
-                    
-                    # Calculate prediction loss (for pred_len part)
-                    pred_outputs = outputs[:, -self.args.pred_len:, f_dim:]
-                    pred_targets = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
-                    pred_loss = criterion(pred_outputs, pred_targets)
-                    
-                    # Calculate label loss (for label_len part) if enabled
-                    if self.args.use_label_loss:
-                        label_outputs = outputs[:, :self.args.label_len, f_dim:]
-                        label_targets = batch_y[:, :self.args.label_len, f_dim:].to(self.device)
-                        label_loss = criterion(label_outputs, label_targets)
-                        loss = pred_loss + self.args.label_loss_weight * label_loss
+                        f_dim = -1 if self.args.features == 'MS' else 0
+                        outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                        batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                        loss = criterion(outputs, batch_y)
+                        if self.model_name == 'HNet':
+                            '''
+                            HNet Specific
+                            '''
+                            moe_loss = 0.0
+                            for obj in boundary_predictions:
+                                moe_loss += self.args.hnet_moe_loss_weight * load_balancing_loss(obj, self.args.hnet_num_experts)
+                            joint_loss = loss + moe_loss
+                            ratio_loss.append(moe_loss.item())
+                        train_loss.append(loss.item())
+                        
+
+                else:
+                    if self.model_name == 'HNet':
+                        outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                     else:
-                        label_loss = torch.tensor(0.0)  # 如果没有label loss，设为0
-                        loss = pred_loss
-                    
-                    # Add reconstruction losses if enabled
-                    if self.args.reconstruction_mode != 'None':
-                        # print("forecast loss:", loss.item())
-                        # print("reconstruction loss:", reconstruction_loss.item())
-                        # print("kl loss:", kl_loss.item())
-                        loss += self.args.reconstruction_loss_weight * reconstruction_loss + self.args.kl_loss_weight * kl_loss
-                    
-                    if self.model_name == 'Hnet':
-                        ratioloss = 0
+                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+
+                    f_dim = -1 if self.args.features == 'MS' else 0
+                    outputs = outputs[:, -self.args.pred_len:, f_dim:]
+                    batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
+                    loss = criterion(outputs, batch_y)
+                    if self.model_name == 'HNet':
+                        '''
+                        HNet Specific
+                        '''
+                        moe_loss = 0.0
                         for obj in boundary_predictions:
-                            ratioloss += self.args.hnet_ratio_loss_weight * load_balancing_loss(obj, self.args.hnet_num_experts)
-                        loss += ratioloss
-                    # 分别记录各种损失
+                            moe_loss += self.args.hnet_moe_loss_weight * load_balancing_loss(obj, self.args.hnet_num_experts)
+    
+                        joint_loss = loss + moe_loss
+                        ratio_loss.append(moe_loss.item())
                     train_loss.append(loss.item())
-                    train_pred_loss.append(pred_loss.item())
-                    train_label_loss.append(label_loss.item())
 
                 if (i + 1) % 100 == 0:
                     print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
@@ -240,31 +175,30 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     time_now = time.time()
 
                 if self.args.use_amp:
-                    scaler.scale(loss).backward()
+                    if self.model_name == 'HNet':
+                        scaler.scale(joint_loss).backward()
+                    else:
+                        scaler.scale(loss).backward()
                     scaler.step(model_optim)
                     scaler.update()
                 else:
-                    loss.backward()
+                    if self.model_name == 'HNet':
+                        joint_loss.backward()
+                    else:
+                        loss.backward()
                     model_optim.step()
 
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
-            train_pred_loss = np.average(train_pred_loss)
-            train_label_loss = np.average(train_label_loss)
+            ratio_loss = np.average(ratio_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
-
-            print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} (Pred: {3:.7f}, Label: {4:.7f}) Vali Loss: {5:.7f} Test Loss: {6:.7f}".format(
-                epoch + 1, train_steps, train_loss, train_pred_loss, train_label_loss, vali_loss, test_loss))
-            
-            # ========== Tensorboard记录 ==========
-            writer.add_scalar('Loss/Train_Total', train_loss, epoch)
-            writer.add_scalar('Loss/Train_Pred', train_pred_loss, epoch)
-            writer.add_scalar('Loss/Train_Label', train_label_loss, epoch)
-            writer.add_scalar('Loss/Validation', vali_loss, epoch)
-            writer.add_scalar('Loss/Test', test_loss, epoch)
-            writer.add_scalar('Learning_Rate', model_optim.param_groups[0]['lr'], epoch)
-            
+            if self.model_name == 'HNet':
+                print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f} Ratio Loss: {5:.7f}".format(
+                    epoch + 1, train_steps, train_loss, vali_loss, test_loss, ratio_loss))
+            else:
+                print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
+                    epoch + 1, train_steps, train_loss, vali_loss, test_loss))
             early_stopping(vali_loss, self.model, path)
             if early_stopping.early_stop:
                 print("Early stopping")
@@ -274,10 +208,6 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         best_model_path = path + '/' + 'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
-        
-        # ========== 关闭Tensorboard ==========
-        writer.close()
-        print(f"Tensorboard logs saved to: {log_dir}")
 
         return self.model
 
@@ -308,21 +238,15 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if self.args.reconstruction_mode != 'None':
-                            outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                        else:
-                            if self.model_name == 'Hnet':
-                                outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                            else:
-                                outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                else:
-                    if self.args.reconstruction_mode != 'None':
-                        outputs, reconstructed_input, reconstruction_loss, kl_loss = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
-                    else:
-                        if self.model_name == 'Hnet':
+                        if self.model_name == 'HNet':
                             outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                         else:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                else:
+                    if self.model_name == 'HNet':
+                        outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
+                    else:
+                        outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
 
                 f_dim = -1 if self.args.features == 'MS' else 0
                 outputs = outputs[:, -self.args.pred_len:, :]
@@ -346,31 +270,16 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 trues.append(true)
                 if i % 20 == 0:
                     input = batch_x.detach().cpu().numpy()
-
-                    if self.args.reconstruction_mode != 'None':
-                        reconstructed_input = reconstructed_input.detach().cpu().numpy()
-                    
-                    
-                    
                     if test_data.scale and self.args.inverse:
                         shape = input.shape
                         input = test_data.inverse_transform(input.reshape(shape[0] * shape[1], -1)).reshape(shape)
-                        # should be the same shape as the original input
-                        if self.args.reconstruction_mode != 'None':
-                            reconstructed_input = test_data.inverse_transform(reconstructed_input.reshape(shape[0] * shape[1], -1)).reshape(shape)
-                    # print(f"input shape: {input.shape}, reconstructed_input shape: {reconstructed_input.shape}")
-                    # print(input)
-                    # print("--------------------------------")
-                    # print(reconstructed_input)
-                    # ssssssssss
                     gt = np.concatenate((input[0, :, -1], true[0, :, -1]), axis=0)
                     pd = np.concatenate((input[0, :, -1], pred[0, :, -1]), axis=0)
-                    visual(gt, pd, os.path.join(folder_path, str(i) + '.pdf'))
-                    # also plot the reconstructed input vs the original input
-                    # 1 for each variable and then merge all to 1 plot
-                    # only the inputs, no predictions
-                    if self.args.reconstruction_mode != 'None':
-                        visulize_reconstructed_input(input, reconstructed_input, folder_path, i)
+                    if self.model_name == 'HNet':
+                        outermost_boundary = boundary_predictions[0].boundary_mask[0].detach().cpu().numpy()
+                        visual_boundary(gt, pd, outermost_boundary, os.path.join(folder_path, str(i) + '.pdf'))
+                    else:
+                        visual(gt, pd, os.path.join(folder_path, str(i) + '.pdf'))
 
         preds = np.concatenate(preds, axis=0)
         trues = np.concatenate(trues, axis=0)
@@ -401,10 +310,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
         print('mse:{}, mae:{}, dtw:{}'.format(mse, mae, dtw))
-        
-        # Use custom result file if specified, otherwise use default
-        result_file = getattr(self.args, 'result_file', 'result_long_term_forecast.txt')
-        f = open(result_file, 'a')
+        f = open("result_long_term_forecast.txt", 'a')
         f.write(setting + "  \n")
         f.write('mse:{}, mae:{}, dtw:{}'.format(mse, mae, dtw))
         f.write('\n')
@@ -416,22 +322,3 @@ class Exp_Long_Term_Forecast(Exp_Basic):
         np.save(folder_path + 'true.npy', trues)
 
         return
-
-
-def visulize_reconstructed_input(input, reconstructed_input, folder_path, iter_num):
-    # 1 for each variable and then merge all to 1 plot
-    # only the inputs, no predictions
-    if not os.path.exists(folder_path + '/reconstructed_input/'):
-        os.makedirs(folder_path + '/reconstructed_input/')
-    plots = []
-    plt.close('all')
-    # skip the first variable because it's the target variable by default
-    for j in range(input.shape[2]):
-        gt = input[0, :, j]
-        reconstructed = reconstructed_input[0, :, j]
-        # just save the plot as a png
-        plt.plot(gt, label='GroundTruth')
-        plt.plot(reconstructed, label='Reconstructed')
-        plt.legend()
-        plt.savefig(os.path.join(folder_path + '/reconstructed_input/', str(iter_num) + '_variable_' + str(j) + '.png'))
-        plt.close()

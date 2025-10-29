@@ -9,6 +9,7 @@ from hnet.models.hnet import HNet
 from layers.Embed import DataEmbedding
 from hnet.models.config_hnet import HNetConfig, SSMConfig, AttnConfig
 
+
 class Model(nn.Module):
     
     def __init__(self, configs):

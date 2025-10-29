@@ -6,7 +6,17 @@ FLASH_ATTENTION_FORCE_BUILD=TRUE pip install flash-attn==2.7.4.post1 --no-build-
 "M": Mamba2 + MLP
 "m": Mamba2 only
 
-
-for all the dmodels, ensure:
+to get ride of these kinda of error:
+RuntimeError: causal_conv1d with channel last layout requires strides (x.stride(0) and x.stride(2)) to be multiples of 8
+1. for all the dmodels, ensure:
 (d_model*expand/headdim) % 8 == 0
-default headdim in mamba2 is 64
+default headdim in mamba2 is 64 (this first step might not be needed if we have 2)
+
+2. please build the mamba locally with pip install -e . --no-build-isolation
+and change the function in ssd_combined.py to:
+def rearrange_and_update_stride(tensor, pattern=None, dim=2):
+    # ensure tensor.stride(dim) is a multiple of eight after rearranging according to pattern,
+    # if not call contiguous(), rearrange only if pattern is not None
+    tensor_rearranged = rearrange(tensor, pattern) if pattern is not None else tensor
+    # Always call contiguous to avoid stride issues with varying sequence lengths
+    return tensor_rearranged.contiguous()

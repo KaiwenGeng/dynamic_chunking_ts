@@ -91,6 +91,31 @@ def visual(true, preds=None, name='./pic/test.pdf'):
     plt.legend()
     plt.savefig(name, bbox_inches='tight')
 
+def visual_boundary(gt, pred, boundary_mask, name='./pic/test.pdf'):
+    """
+    Results visualization
+    Here we also need to visualize the boundary mask
+    The boundary mask is a binary mask of the same length as the input data
+    We add vertical dotted lines to indicate the boundary/chunk positions
+    """
+    plt.figure(figsize=(12, 6))
+    plt.plot(pred, label='Prediction', linewidth=2)
+    plt.plot(gt, label='GroundTruth', linewidth=2)
+    
+    
+    # Add vertical dotted lines at boundary positions
+    boundary_positions = np.where(boundary_mask)[0]
+    for pos in boundary_positions:
+        plt.axvline(x=pos, color='red', linestyle=':', alpha=0.6, linewidth=1.5)
+    
+    # Add a dummy line for the legend
+    plt.axvline(x=-1, color='red', linestyle=':', alpha=0.6, linewidth=1.5, label='Boundaries')
+    
+    plt.legend()
+    plt.xlabel('Time Step')
+    plt.ylabel('Value')
+    plt.savefig(name, bbox_inches='tight')
+    plt.close()
 
 def adjustment(gt, pred):
     anomaly_state = False
