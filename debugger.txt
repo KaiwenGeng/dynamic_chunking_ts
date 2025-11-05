@@ -20,3 +20,9 @@ def rearrange_and_update_stride(tensor, pattern=None, dim=2):
     tensor_rearranged = rearrange(tensor, pattern) if pattern is not None else tensor
     # Always call contiguous to avoid stride issues with varying sequence lengths
     return tensor_rearranged.contiguous()
+
+
+
+# for flash attention:
+find the right wheel for your cuda/pytorch/python version and uv pip install whatever_flash_attn_wheel.whl
+pip install https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.4.15/flash_attn-2.8.3+cu128torch2.9-cp312-cp312-linux_x86_64.whl

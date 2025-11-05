@@ -58,12 +58,12 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if self.model_name == 'HNet':
+                        if self.model_name in self.dc_models:
                             outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                         else:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
-                    if self.model_name == 'HNet':
+                    if self.model_name in self.dc_models:
                         outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
@@ -123,7 +123,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if self.model_name == 'HNet':
+                        if self.model_name in self.dc_models:
                             outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                         else:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
@@ -132,7 +132,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         outputs = outputs[:, -self.args.pred_len:, f_dim:]
                         batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                         loss = criterion(outputs, batch_y)
-                        if self.model_name == 'HNet':
+                        if self.model_name in self.dc_models:
                             '''
                             HNet Specific
                             '''
@@ -145,7 +145,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         
 
                 else:
-                    if self.model_name == 'HNet':
+                    if self.model_name in self.dc_models:
                         outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
@@ -154,7 +154,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     outputs = outputs[:, -self.args.pred_len:, f_dim:]
                     batch_y = batch_y[:, -self.args.pred_len:, f_dim:].to(self.device)
                     loss = criterion(outputs, batch_y)
-                    if self.model_name == 'HNet':
+                    if self.model_name in self.dc_models:
                         '''
                         HNet Specific
                         '''
@@ -175,14 +175,14 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                     time_now = time.time()
 
                 if self.args.use_amp:
-                    if self.model_name == 'HNet':
+                    if self.model_name in self.dc_models:
                         scaler.scale(joint_loss).backward()
                     else:
                         scaler.scale(loss).backward()
                     scaler.step(model_optim)
                     scaler.update()
                 else:
-                    if self.model_name == 'HNet':
+                    if self.model_name in self.dc_models:
                         joint_loss.backward()
                     else:
                         loss.backward()
@@ -193,7 +193,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
             ratio_loss = np.average(ratio_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
-            if self.model_name == 'HNet':
+            if self.model_name in self.dc_models:
                 print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f} Ratio Loss: {5:.7f}".format(
                     epoch + 1, train_steps, train_loss, vali_loss, test_loss, ratio_loss))
             else:
@@ -238,12 +238,12 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                 # encoder - decoder
                 if self.args.use_amp:
                     with torch.cuda.amp.autocast():
-                        if self.model_name == 'HNet':
+                        if self.model_name in self.dc_models:
                             outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                         else:
                             outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                 else:
-                    if self.model_name == 'HNet':
+                    if self.model_name in self.dc_models:
                         outputs, boundary_predictions = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
                     else:
                         outputs = self.model(batch_x, batch_x_mark, dec_inp, batch_y_mark)
@@ -275,7 +275,7 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         input = test_data.inverse_transform(input.reshape(shape[0] * shape[1], -1)).reshape(shape)
                     gt = np.concatenate((input[0, :, -1], true[0, :, -1]), axis=0)
                     pd = np.concatenate((input[0, :, -1], pred[0, :, -1]), axis=0)
-                    if self.model_name == 'HNet':
+                    if self.model_name in self.dc_models:
                         outermost_boundary = boundary_predictions[0].boundary_mask[0].detach().cpu().numpy()
                         visual_boundary(gt, pd, outermost_boundary, os.path.join(folder_path, str(i) + '.pdf'))
                     else:

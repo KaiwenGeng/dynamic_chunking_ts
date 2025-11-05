@@ -1,112 +1,68 @@
-# # import torch
-# # from mamba_ssm import Mamba
+import sys
+from typing import Dict
 
-# # batch, length, dim = 2, 64, 16
-# # x = torch.randn(batch, length, dim).to("cuda")
-# # model = Mamba(
-# #     # This module uses roughly 3 * expand * d_model^2 parameters
-# #     d_model=dim, # Model dimension d_model
-# #     d_state=16,  # SSM state expansion factor
-# #     d_conv=4,    # Local convolution width
-# #     expand=2,    # Block expansion factor
-# # ).to("cuda")
-# # y = model(x)
-# # print(y.shape)
-# # assert y.shape == x.shape
+import torch
 
-# # import flash_attn
-# # print("Hello, World!")
+# Allow importing local modules when running this file directly
+sys.path.append("/home/kgeng/usr/dynamic_chunking_ts")
+from models.hnet.hnet.modules.dc import (
+    RoutingModule,
+    ChunkLayer,
+    DeChunkLayer,
+)
 
 
+def demo_dynamic_chunking(seq: torch.Tensor, mask: torch.Tensor) -> Dict[str, torch.Tensor]:
+    """
+    Demo: Given seq [B, D, L] and mask [B, L],
+    1) detect boundaries, 2) chunk to boundary-only tokens, 3) dechunk back to [B, D, L].
+
+    No feature-wise mixing is performed (headdim == D), so feature dimension is preserved.
+    """
+    assert seq.dim() == 3, "seq must be [B, D, L]"
+    assert mask.dim() == 2, "mask must be [B, L]"
+    B, D, L = seq.shape
+    assert mask.shape == (B, L), "mask must match batch and length"
+
+    # Convert to [B, L, D] for the modules
+    hidden_states = seq.transpose(1, 2).contiguous()
+    mask_bool = mask.to(dtype=torch.bool)
+
+    # 1) Routing: boundary detection via cosine dissimilarity
+    routing = RoutingModule(d_model=D)
+    routing_out = routing(hidden_states, mask=mask_bool)
+    boundary_mask = routing_out.boundary_mask  # [B, L] booleans
+    boundary_prob = routing_out.boundary_prob  # [B, L, 2]
+
+    # 2) Chunk: keep only boundary tokens per sequence
+    chunk = ChunkLayer()
+    chunked_hidden_states, _, _, chunked_mask = chunk(
+        hidden_states=hidden_states,
+        boundary_mask=boundary_mask,
+        mask=mask_bool,
+    )  # chunked_hidden_states: [B, M, D], chunked_mask: [B, M]
+
+    # (Optional) Apply heavier processing on chunked_hidden_states here.
+    # For this demo, we keep them as-is (identity).
+
+    # 3) Dechunk: expand back to full length via EMA; set headdim=D to avoid feature mixing
+    dechunk = DeChunkLayer(d_model=D, headdim=D)
+    reconstructed_bld = dechunk(
+        hidden_states=chunked_hidden_states,
+        boundary_mask=boundary_mask,
+        boundary_prob=boundary_prob,
+        mask=None,
+    )  # [B, L, D]
+
+    # Convert back to [B, D, L]
+    reconstructed = reconstructed_bld.transpose(1, 2).contiguous()
+
+    return {
+        "boundary_mask": boundary_mask,
+        "selected_probs": routing_out.selected_probs,  # [B, L, 1]
+        "chunked_hidden_states": chunked_hidden_states,
+        "chunked_mask": chunked_mask,
+        "reconstructed": reconstructed,
+    }
 
 
-
-
-
-
-
-# from hnet.models.hnet import HNet
-# from hnet.models.config_hnet import HNetConfig, SSMConfig, AttnConfig
-# import torch
-
-# # 2-stage hierarchical configuration
-# config = HNetConfig(
-#     arch_layout=["m1", ["m1", ["T1"], "m1"], "m1"],  
-#     # T/t: Attention with/without SwiGLU MLP, M/m: Mamba2 with/without SwiGLU MLP
-#     # number means number of layers in the block, e.g., m1 means 1 Mamba2 layer, T1 means 1 Attention layer with SwiGLU MLP
-#     d_model=[32, 64, 128],
-#     #Channel width per stage. 
-#     d_intermediate=[0, 128, 192],  # used by uppercase blocks only, e.g., T1 / M1
-#     ssm_cfg=SSMConfig(
-#         chunk_size=64, # performance tuning parameter, no effect on accuracy
-#         d_conv=4,
-#         d_state=32,
-#         expand=2,
-#     ),
-#     attn_cfg=AttnConfig(
-#         num_heads=[2, 4, 8],
-#         rotary_emb_dim=[8, 8, 8],
-#         window_size=[-1, -1, -1]
-#     )
-#     # 1 = full causal attention, >0 = sliding window length.
-# )
-
-# # Initialize the model with bfloat16 dtype
-# model = HNet(config=config, stage_idx=0, dtype=torch.bfloat16).to("cuda")
-# # Prepare your input with bfloat16 dtype
-# batch, length, dim = 2, 96, 32
-# x = torch.randn(batch, length, dim, dtype=torch.bfloat16).to("cuda")
-
-# # Create a mask (required)
-# mask = torch.ones(batch, length, dtype=torch.bool, device="cuda") # True for valid tokens, False for masked tokens
-
-# # Forward pass
-# output, main_network_input, boundary_predictions = model(
-#     hidden_states=x,
-#     mask=mask,
-#     inference_params=None
-# )
-
-# print(f"Input shape: {x.shape}, dtype: {x.dtype}")
-# print(f"Output shape: {output.shape}, dtype: {output.dtype}")
-# print(f"Main network input shape: {main_network_input.shape}, dtype: {main_network_input.dtype}")
-# print(f"Shapes match: {output.shape == x.shape}")
-# print(f"Main network input shapes match: {output.shape == main_network_input.shape}")
-# print(f"Number of hierarchical stages: {len(boundary_predictions)}")
-
-
-
-
-
-
-
-
-
-
-# # import torch
-# # from mamba_ssm import Mamba
-
-# # batch, length, dim = 2, 64, 16
-# # x = torch.randn(batch, length, dim).to("cuda")
-# # model = Mamba(
-# #     # This module uses roughly 3 * expand * d_model^2 parameters
-# #     d_model=dim, # Model dimension d_model
-# #     d_state=16,  # SSM state expansion factor
-# #     d_conv=4,    # Local convolution width
-# #     expand=2,    # Block expansion factor
-# # ).to("cuda")
-# # y = model(x)
-# # print(y.shape)
-# # assert y.shape == x.shape
-
-# # import flash_attn
-# # print("Hello, World!")
-
-
-
-
-
-# Quick test - you can run this in Python to check:
-import mamba_ssm
-print(mamba_ssm.__file__)
-print(mamba_ssm.__version__)
