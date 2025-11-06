@@ -22,9 +22,17 @@ python -u run.py \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
-  --n_heads 2 \
   --itr 1 \
-  --hnet_num_experts 16 \
-  --hnet_moe_loss_weight 0.03 \
+  --hnet_arch_layout '["m1", ["T1"], "m1"]' \
+  --hnet_d_model 128 256 \
+  --hnet_d_intermediate 0 512\
   --hnet_ssm_chunk_size 256 \
-  --n_heads 8
+  --hnet_ssm_d_conv 4 \
+  --hnet_ssm_d_state 64 \
+  --hnet_ssm_expand 4 \
+  --hnet_attn_num_heads 2 2 \
+  --hnet_attn_rotary_emb_dim 8 8 \
+  --hnet_attn_window_size -1 -1 \
+  --hnet_num_experts 16 \
+  --hnet_moe_loss_weight 0.03
+

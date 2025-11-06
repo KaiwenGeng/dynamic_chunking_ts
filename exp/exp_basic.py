@@ -48,7 +48,7 @@ class Exp_Basic(object):
         }
         self.dc_models = {
             'HNet': HNet,
-            'DC_Transformer': DC_Transformer,
+            # 'DC_Transformer': DC_Transformer,
         }
         if args.model == 'Mamba':
             print('Please make sure you have successfully installed mamba_ssm')
