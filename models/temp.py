@@ -51,9 +51,7 @@ class Model(nn.Module):
             attn_cfg=attn_cfg,
         )
 
-        self.value_embedding = nn.Sequential(
-            nn.Linear(self.seq_len, self.seq_len  * self.d_model),
-        )
+        self.value_embedding = nn.Linear(self.seq_len, self.seq_len  * self.d_model)
 
         self.position_embedding = PositionalEmbedding(configs.d_model)
         self.output_head = nn.Linear(self.seq_len * self.d_model,  self.pred_len)
@@ -85,8 +83,6 @@ class Model(nn.Module):
         x_enc = rearrange(x_enc, 'b c (l d) -> (b c) l d', d=self.d_model)
 
         x_enc = x_enc + self.position_embedding(x_enc)
-
-        x_enc = self.dropout(x_enc)
 
         x_enc = x_enc.to(torch.bfloat16)
 

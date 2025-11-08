@@ -91,29 +91,51 @@ def visual(true, preds=None, name='./pic/test.pdf'):
     plt.legend()
     plt.savefig(name, bbox_inches='tight')
 
-def visual_boundary(gt, pred, boundary_mask, name='./pic/test.pdf'):
+def visual_boundary(gt, pred, boundary_mask, name='./pic/test.pdf', boundary_prob=None):
     """
     Results visualization
     Here we also need to visualize the boundary mask
     The boundary mask is a binary mask of the same length as the input data
     We add vertical dotted lines to indicate the boundary/chunk positions
     """
-    plt.figure(figsize=(12, 6))
-    plt.plot(pred, label='Prediction', linewidth=2)
-    plt.plot(gt, label='GroundTruth', linewidth=2)
     
+    if boundary_prob is not None:
+        # Create two subplots: main plot and probability bar chart below
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), 
+                                       gridspec_kw={'height_ratios': [3, 1]},
+                                       sharex=True)
+        
+        # Top plot: time series
+        ax1.plot(pred, label='Prediction', linewidth=2)
+        ax1.plot(gt, label='GroundTruth', linewidth=2)
+        boundary_positions = np.where(boundary_mask)[0]
+        for pos in boundary_positions:
+            ax1.axvline(x=pos, color='red', linestyle=':', alpha=0.6, linewidth=1.5)
+        ax1.legend()
+        ax1.set_ylabel('Value')
+        
+        # Bottom plot: boundary probability bar chart
+        is_boundary_prob = boundary_prob[:,1]
+        x_positions = np.arange(len(is_boundary_prob))
+        # bar chart, but make the place where less than 0.5 orange where it is greater than 0.5 purple
+        colors = ['orange' if p < 0.5 else 'purple' for p in is_boundary_prob]
+        ax2.bar(x_positions, is_boundary_prob, color=colors, alpha=0.6, width=1.0) 
+        ax2.set_xlabel('Time Step')
+        ax2.set_ylabel('Boundary Prob')
+        ax2.set_ylim([0, 1])
+        
+    else:
+        # Single plot if no boundary_prob
+        plt.figure(figsize=(12, 6))
+        plt.plot(pred, label='Prediction', linewidth=2)
+        plt.plot(gt, label='GroundTruth', linewidth=2)
+        boundary_positions = np.where(boundary_mask)[0]
+        for pos in boundary_positions:
+            plt.axvline(x=pos, color='red', linestyle=':', alpha=0.6, linewidth=1.5)
+        plt.legend()
+        plt.xlabel('Time Step')
+        plt.ylabel('Value')
     
-    # Add vertical dotted lines at boundary positions
-    boundary_positions = np.where(boundary_mask)[0]
-    for pos in boundary_positions:
-        plt.axvline(x=pos, color='red', linestyle=':', alpha=0.6, linewidth=1.5)
-    
-    # Add a dummy line for the legend
-    plt.axvline(x=-1, color='red', linestyle=':', alpha=0.6, linewidth=1.5, label='Boundaries')
-    
-    plt.legend()
-    plt.xlabel('Time Step')
-    plt.ylabel('Value')
     plt.savefig(name, bbox_inches='tight')
     plt.close()
 

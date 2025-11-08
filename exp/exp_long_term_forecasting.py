@@ -136,9 +136,11 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                             '''
                             HNet Specific
                             '''
+
                             moe_loss = 0.0
                             for obj in boundary_predictions:
                                 moe_loss += self.args.hnet_moe_loss_weight * load_balancing_loss(obj, self.args.hnet_num_experts)
+
                             joint_loss = loss + moe_loss
                             ratio_loss.append(moe_loss.item())
                         train_loss.append(loss.item())
@@ -161,7 +163,6 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         moe_loss = 0.0
                         for obj in boundary_predictions:
                             moe_loss += self.args.hnet_moe_loss_weight * load_balancing_loss(obj, self.args.hnet_num_experts)
-    
                         joint_loss = loss + moe_loss
                         ratio_loss.append(moe_loss.item())
                     train_loss.append(loss.item())
@@ -275,18 +276,35 @@ class Exp_Long_Term_Forecast(Exp_Basic):
                         input = test_data.inverse_transform(input.reshape(shape[0] * shape[1], -1)).reshape(shape)
                     gt = np.concatenate((input[0, :, -1], true[0, :, -1]), axis=0)
                     pd = np.concatenate((input[0, :, -1], pred[0, :, -1]), axis=0)
+
+
+                    gt_all = np.concatenate((input[0, :, :], true[0, :, :]), axis=0)
+                    pd_all = np.concatenate((input[0, :, :], pred[0, :, :]), axis=0)
+
                     if self.model_name in self.dc_models:
                         outermost_boundary = boundary_predictions[0].boundary_mask[0].detach().cpu().numpy()
-                        visual_boundary(gt, pd, outermost_boundary, os.path.join(folder_path, str(i) + '.pdf'))
+                        outermost_boundary_prob = boundary_predictions[0].boundary_prob[0].detach().cpu().float().numpy()
+                        # see if outermost_boundary is (L,) or (n_vars, L)
+                        if outermost_boundary.ndim == 1:
+                            # boundary shared by all variables
+                            visual_boundary(gt, pd, outermost_boundary, os.path.join(folder_path, str(i) + '.pdf'))
+                        else:
+                            # boundary is different for each variable
+                            for j in range(outermost_boundary.shape[0]):
+                                if j != outermost_boundary.shape[0] - 1:
+                                    plot_path = folder_path + '/boundary_variable/' 
+                                    if not os.path.exists(plot_path):
+                                        os.makedirs(plot_path)
+                                else:
+                                    plot_path = folder_path
+                                visual_boundary(gt_all[:,j], pd_all[:,j], outermost_boundary[j], os.path.join(plot_path, str(i) + '_variable_' + str(j) + '.pdf'), outermost_boundary_prob[j])
                     else:
                         visual(gt, pd, os.path.join(folder_path, str(i) + '.pdf'))
 
         preds = np.concatenate(preds, axis=0)
         trues = np.concatenate(trues, axis=0)
-        print('test shape:', preds.shape, trues.shape)
         preds = preds.reshape(-1, preds.shape[-2], preds.shape[-1])
         trues = trues.reshape(-1, trues.shape[-2], trues.shape[-1])
-        print('test shape:', preds.shape, trues.shape)
 
         # result save
         folder_path = './results/' + setting + '/'

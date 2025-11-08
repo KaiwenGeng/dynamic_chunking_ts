@@ -31,7 +31,8 @@ python -u run.py \
   --hnet_attn_rotary_emb_dim 8 8 8 \
   --hnet_attn_window_size -1 -1 -1 \
   --hnet_num_experts 16 \
-  --hnet_moe_loss_weight 0.03
+  --hnet_moe_loss_weight 0.03 \
+
 
 python -u run.py \
   --task_name long_term_forecast \

@@ -35,17 +35,18 @@ class EnEmbedding(nn.Module):
 
     def forward(self, x):
         # do patching
-        n_vars = x.shape[1]
-        glb = self.glb_token.repeat((x.shape[0], 1, 1, 1))
+        # x: [B, V, L]
+        n_vars = x.shape[1]  # V
+        glb = self.glb_token.repeat((x.shape[0], 1, 1, 1))  # [B, V, 1, D]
 
-        x = x.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)
-        x = torch.reshape(x, (x.shape[0] * x.shape[1], x.shape[2], x.shape[3]))
+        x = x.unfold(dimension=-1, size=self.patch_len, step=self.patch_len)  # [B, V, P, patch_len], P=L//patch_len
+        x = torch.reshape(x, (x.shape[0] * x.shape[1], x.shape[2], x.shape[3]))  # [B*V, P, patch_len]
         # Input encoding
-        x = self.value_embedding(x) + self.position_embedding(x)
-        x = torch.reshape(x, (-1, n_vars, x.shape[-2], x.shape[-1]))
-        x = torch.cat([x, glb], dim=2)
-        x = torch.reshape(x, (x.shape[0] * x.shape[1], x.shape[2], x.shape[3]))
-        return self.dropout(x), n_vars
+        x = self.value_embedding(x) + self.position_embedding(x)  # [B*V, P, D]
+        x = torch.reshape(x, (-1, n_vars, x.shape[-2], x.shape[-1]))  # [B, V, P, D]
+        x = torch.cat([x, glb], dim=2)  # [B, V, P+1, D] (append global token)
+        x = torch.reshape(x, (x.shape[0] * x.shape[1], x.shape[2], x.shape[3]))  # [B*V, P+1, D]
+        return self.dropout(x), n_vars  # ([B*V, P+1, D], V)
 
 
 class Encoder(nn.Module):
@@ -83,32 +84,32 @@ class EncoderLayer(nn.Module):
         self.activation = F.relu if activation == "relu" else F.gelu
 
     def forward(self, x, cross, x_mask=None, cross_mask=None, tau=None, delta=None):
-        B, L, D = cross.shape
+        B, L, D = cross.shape  # cross: [B, L, D]
         x = x + self.dropout(self.self_attention(
             x, x, x,
             attn_mask=x_mask,
             tau=tau, delta=None
-        )[0])
-        x = self.norm1(x)
+        )[0])  # x: [E, P+1, D], E=B*V (multi) or B (single)
+        x = self.norm1(x)  # [E, P+1, D]
 
-        x_glb_ori = x[:, -1, :].unsqueeze(1)
-        x_glb = torch.reshape(x_glb_ori, (B, -1, D))
+        x_glb_ori = x[:, -1, :].unsqueeze(1)  # [E, 1, D], last token is global
+        x_glb = torch.reshape(x_glb_ori, (B, -1, D))  # [B, V', D], where V'=E/B
         x_glb_attn = self.dropout(self.cross_attention(
             x_glb, cross, cross,
             attn_mask=cross_mask,
             tau=tau, delta=delta
-        )[0])
+        )[0])  # [B, V', D], queries are per-variable globals
         x_glb_attn = torch.reshape(x_glb_attn,
-                                   (x_glb_attn.shape[0] * x_glb_attn.shape[1], x_glb_attn.shape[2])).unsqueeze(1)
-        x_glb = x_glb_ori + x_glb_attn
-        x_glb = self.norm2(x_glb)
+                                   (x_glb_attn.shape[0] * x_glb_attn.shape[1], x_glb_attn.shape[2])).unsqueeze(1)  # [E, 1, D]
+        x_glb = x_glb_ori + x_glb_attn  # [E, 1, D]
+        x_glb = self.norm2(x_glb)  # [E, 1, D]
 
-        y = x = torch.cat([x[:, :-1, :], x_glb], dim=1)
+        y = x = torch.cat([x[:, :-1, :], x_glb], dim=1)  # [E, P+1, D]
 
-        y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))
-        y = self.dropout(self.conv2(y).transpose(-1, 1))
+        y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))  # [E, d_ff, P+1]
+        y = self.dropout(self.conv2(y).transpose(-1, 1))  # [E, P+1, D]
 
-        return self.norm3(x + y)
+        return self.norm3(x + y)  # [E, P+1, D]
 
 
 class Model(nn.Module):
