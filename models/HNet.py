@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import json
 from hnet.models.hnet import HNet
 
-from layers.Embed import DataEmbedding
+from layers.Embed import DataEmbedding, PositionalEmbedding
 from hnet.models.config_hnet import HNetConfig, SSMConfig, AttnConfig
 
 
@@ -19,8 +19,8 @@ class Model(nn.Module):
         self.label_len = configs.label_len
         self.seq_len = configs.seq_len
         self.embedding_dim = configs.hnet_d_model[0]
-        self.embedding = DataEmbedding(configs.enc_in, self.embedding_dim, configs.embed, configs.freq, configs.dropout)
-
+        self.embedding = nn.Linear(configs.enc_in, self.embedding_dim)
+        self.position_embedding = PositionalEmbedding(self.embedding_dim)
         arch_layout = json.loads(configs.hnet_arch_layout)
         ssm_cfg = SSMConfig(
             d_conv=configs.hnet_ssm_d_conv,
@@ -52,20 +52,20 @@ class Model(nn.Module):
         assert torch.equal(x_mark_enc, x_mark_dec[:,:self.label_len,:]) , "x_mark_enc must be the same as the first part of x_mark_dec"
         mean_enc = x_enc.mean(1, keepdim=True).detach()
         x_enc = x_enc - mean_enc
-        x_dec[:, :self.label_len, :] = x_dec[:, :self.label_len, :] - mean_enc
+        x_dec[:, :self.seq_len, :] = x_dec[:, :self.seq_len, :] - mean_enc
         std_enc = torch.sqrt(torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5).detach()
         x_enc = x_enc / std_enc
-        x_dec[:, :self.label_len, :] = x_dec[:, :self.label_len, :] / std_enc
-        hnet_input = self.embedding(x_dec, x_mark_dec)
+        x_dec[:, :self.seq_len, :] = x_dec[:, :self.seq_len, :] / std_enc
+        hnet_input = self.embedding(x_dec) + self.position_embedding(x_dec)
         # convert the hnet_input to bfloat16
         hnet_input = hnet_input.to(torch.bfloat16)
         B, L = x_dec.size(0), x_dec.size(1)
         mask = torch.zeros(B, L, dtype=torch.bool, device=x_dec.device)
-        mask[:, :self.label_len] = True  # True for lookback, False for padded forecast
+        mask[:, :self.seq_len] = True  # True for lookback, False for padded forecast
         # make sure the hnet is in bfloat16
         self.hnet = self.hnet.to(torch.bfloat16)
         self.out_layer = self.out_layer.to(torch.bfloat16)
-        hnet_output, main_network_input, boundary_predictions = self.hnet(
+        hnet_output, main_network_output, boundary_predictions = self.hnet(
             hidden_states=hnet_input,
             mask=mask,
             inference_params=None,

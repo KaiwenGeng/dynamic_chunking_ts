@@ -8,14 +8,6 @@ from hnet.models.hnet import HNet
 from hnet.models.config_hnet import HNetConfig, SSMConfig, AttnConfig
 from einops import rearrange
 from layers.Embed import PositionalEmbedding
-from layers.Transformer_EncDec import Encoder, EncoderLayer
-from layers.SelfAttention_Family import FullAttention, AttentionLayer
-from models.hnet.hnet.modules.dc import (
-    RoutingModule,
-    ChunkLayer,
-    DeChunkLayer,
-)
-
 
 def rearrange_boundary_predictions(boundary_predictions, c_in):
     for i in range(len(boundary_predictions)):
@@ -53,6 +45,7 @@ class ByteEmbedding(nn.Module):
         return result
 
 
+
 class Model(nn.Module):
     
     def __init__(self, configs):
@@ -62,7 +55,7 @@ class Model(nn.Module):
         self.label_len = configs.label_len
         self.seq_len = configs.seq_len
         self.c_in = configs.enc_in
-        self.d_model = configs.d_model
+        self.d_model = configs.hnet_d_model[0]
         self.num_patches = configs.seq_len // configs.hnet_num_experts
 
         arch_layout = json.loads(configs.hnet_arch_layout)
@@ -88,32 +81,10 @@ class Model(nn.Module):
         self.value_embedding = ByteEmbedding(self.d_model)
         self.position_embedding = PositionalEmbedding(self.d_model)
 
-        self.output_head = nn.Sequential(Transpose(2, 3), nn.Linear(self.seq_len, self.num_patches), nn.Flatten(start_dim=-2), 
-                                         nn.Linear(self.num_patches * self.d_model, self.pred_len))
-        self.residual_proj = nn.Linear(
-            self.d_model, self.d_model
-        )
-        self.routing = RoutingModule(d_model=self.d_model)
-        self.chunk_layer = ChunkLayer()
-        self.dechunk_layer = DeChunkLayer(self.d_model)
+        self.output_head = self.output_head = nn.Sequential(nn.Flatten(start_dim=-2), nn.Linear(self.seq_len * self.d_model, self.pred_len))
+        self.hnet = HNet(config=hnet_cfg, stage_idx=0, dtype=torch.bfloat16)
+
         self.dropout = nn.Dropout(configs.dropout)
-
-
-        # Encoder
-        self.encoder = Encoder(
-            [
-                EncoderLayer(
-                    AttentionLayer(
-                        FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                      output_attention=False), configs.d_model, configs.n_heads),
-                    configs.d_model,
-                    configs.d_ff,
-                    dropout=configs.dropout,
-                    activation=configs.activation
-                ) for l in range(configs.e_layers)
-            ],
-            norm_layer=nn.Sequential(Transpose(1,2), nn.BatchNorm1d(configs.d_model), Transpose(1,2))
-        )
     
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Normalization from Non-stationary Transformer
@@ -134,35 +105,34 @@ class Model(nn.Module):
 
         x_enc = self.value_embedding(x_enc) 
 
+        # print("after value embedding, the shape of x_enc is", x_enc.shape)
+        # breakpoint()
 
-        hidden_states = self.dropout(x_enc)
+        x_enc = x_enc + self.position_embedding(x_enc)
 
-        residual_connection = self.residual_proj(hidden_states) ################################## residual connection
-        bpred_output = self.routing(
-            hidden_states,
-            mask=mask,
-        )
+        x_enc = self.dropout(x_enc)
 
-        hidden_states, _ , _, _ = self.chunk_layer(
-            hidden_states, bpred_output.boundary_mask, None, mask=mask
-        )
-        hidden_states = hidden_states + self.position_embedding(hidden_states)
+        x_enc = x_enc.to(torch.bfloat16)
 
-
-        hidden_states, _ = self.encoder(hidden_states)
-        hidden_states = self.dechunk_layer(
-            hidden_states,
-            bpred_output.boundary_mask,
-            bpred_output.boundary_prob,
-            None,
+        self.hnet = self.hnet.to(torch.bfloat16)
+        hnet_output, main_network_output, boundary_predictions = self.hnet(
+            hidden_states=x_enc,
             mask=mask,
             inference_params=None,
         )
-        hidden_states += residual_connection
-        # print("after residual connection, hidden_states shape", hidden_states.shape)
-        
-        hidden_states = rearrange(hidden_states, '(b c) l d -> b c l d', c=self.c_in, d=self.d_model)
-        hnet_output = self.output_head(hidden_states)
+        boundary_predictions = rearrange_boundary_predictions(boundary_predictions, self.c_in)
+        # outer_prob = boundary_predictions[0].boundary_prob[:,:,:,1]
+        # outer_prob = outer_prob.to(torch.float32)
+        hnet_output = hnet_output.to(torch.float32)
+        hnet_output = rearrange(hnet_output, '(b c) l d -> b c l d', c=self.c_in, d=self.d_model)
+
+        '''
+        outer_prob: boundary probability shape (B, C, seq_len), might help?
+        hnet_output: shape (B, C, seq_len, d_model)
+        want: (B, C, pred_len)
+        '''
+
+        hnet_output = self.output_head(hnet_output)
         # print("after output head, the shape of hnet_output is", hnet_output.shape)
         # breakpoint()
         hnet_output = hnet_output.permute(0, 2, 1)
@@ -170,15 +140,7 @@ class Model(nn.Module):
 
         hnet_output = hnet_output * stdev + means
 
-        boundary_predictions = rearrange_boundary_predictions([bpred_output], self.c_in)
-
-        # breakpoint()
-
         return hnet_output, boundary_predictions
-
-
-
-        
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
         if self.task_name == 'long_term_forecast' or self.task_name == 'short_term_forecast':

@@ -1,9 +1,10 @@
 import os
 import torch
 from models import Autoformer, Transformer, TimesNet, Nonstationary_Transformer, DLinear, FEDformer, \
-    Informer, LightTS, Reformer, ETSformer, Pyraformer, PatchTST, MICN, Crossformer, FiLM, iTransformer, \
+    Informer, LightTS, Reformer, ETSformer, Pyraformer, PatchTST, PatchTST_Causal, MICN, Crossformer, FiLM, iTransformer, \
     Koopa, TiDE, FreTS, TimeMixer, TSMixer, SegRNN, MambaSimple, TemporalFusionTransformer, SCINet, PAttn, TimeXer, \
-    WPMixer, MultiPatchFormer, KANAD, Reconstruct_PatchTST, LatentTransformer, LatentTransformerWithReconstruction, HNet, DC_Transformer
+    WPMixer, MultiPatchFormer, KANAD, Reconstruct_PatchTST, LatentTransformer, LatentTransformerWithReconstruction, HNet, ByteHnet, \
+    Fuse_DC_Transformer, TransformerDecoder, CIDC
 
 
 class Exp_Basic(object):
@@ -21,6 +22,7 @@ class Exp_Basic(object):
             'Reformer': Reformer,
             'ETSformer': ETSformer,
             'PatchTST': PatchTST,
+            'PatchTST_Causal': PatchTST_Causal,
             'Pyraformer': Pyraformer,
             'MICN': MICN,
             'Crossformer': Crossformer,
@@ -44,11 +46,16 @@ class Exp_Basic(object):
             'LatentTransformer': LatentTransformer,
             'LatentTransformerWithReconstruction': LatentTransformerWithReconstruction,
             'HNet': HNet,
-            'DC_Transformer': DC_Transformer,
+            'ByteHnet': ByteHnet,
+            'Fuse_DC_Transformer': Fuse_DC_Transformer,
+            'TransformerDecoder': TransformerDecoder,
+            'CIDC': CIDC,
         }
         self.dc_models = {
             'HNet': HNet,
-            'DC_Transformer': DC_Transformer,
+            'ByteHnet': ByteHnet,
+            'Fuse_DC_Transformer': Fuse_DC_Transformer,
+            'CIDC': CIDC,
         }
         if args.model == 'Mamba':
             print('Please make sure you have successfully installed mamba_ssm')

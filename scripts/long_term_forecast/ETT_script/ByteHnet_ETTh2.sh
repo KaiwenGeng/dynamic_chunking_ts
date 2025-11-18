@@ -1,16 +1,15 @@
 export CUDA_VISIBLE_DEVICES=0
 
-model_name=DC_Transformer
+model_name=ByteHnet
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
-  --data_path ETTh1.csv \
-  --model_id ETTh1_96_96 \
+  --data_path ETTh2.csv \
+  --model_id ETTh2_96_96 \
   --model $model_name \
-  --d_model 128 \
-  --data ETTh1 \
+  --data ETTh2 \
   --features M \
   --seq_len 96 \
   --label_len 96 \
@@ -23,29 +22,30 @@ python -u run.py \
   --c_out 7 \
   --des 'Exp' \
   --itr 1 \
+  --batch_size 4 \
   --hnet_arch_layout '["m1", ["t1"], "m1"]' \
-  --hnet_d_model 128 256 \
-  --hnet_d_intermediate 512 1024\
-  --hnet_ssm_chunk_size 64 \
-  --hnet_ssm_d_conv 4 \
-  --hnet_ssm_d_state 128 \
+  --hnet_d_model 256 512\
+  --hnet_d_intermediate 256 512\
+  --hnet_ssm_chunk_size 32 \
+  --hnet_ssm_d_conv 2 \
+  --hnet_ssm_d_state 32 \
   --hnet_ssm_expand 4 \
   --hnet_attn_num_heads 4 4 \
   --hnet_attn_rotary_emb_dim 0 0 \
   --hnet_attn_window_size -1 -1 \
-  --hnet_num_experts 8 \
-  --hnet_moe_loss_weight 0.02 \
+  --hnet_num_experts 16 \
+  --hnet_moe_loss_weight 0.05 \
+
 
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
-  --data_path ETTh1.csv \
-  --model_id ETTh1_96_192 \
+  --data_path ETTh2.csv \
+  --model_id ETTh2_96_192 \
   --model $model_name \
-  --d_model 128 \
-  --data ETTh1 \
+  --data ETTh2 \
   --features M \
   --seq_len 96 \
   --label_len 96 \
@@ -60,27 +60,26 @@ python -u run.py \
   --itr 1 \
   --batch_size 4 \
   --hnet_arch_layout '["m1", ["t1"], "m1"]' \
-  --hnet_d_model 128 256 \
-  --hnet_d_intermediate 0 1024\
-  --hnet_ssm_chunk_size 64 \
-  --hnet_ssm_d_conv 4 \
-  --hnet_ssm_d_state 128 \
+  --hnet_d_model 256 512\
+  --hnet_d_intermediate 256 512\
+  --hnet_ssm_chunk_size 32 \
+  --hnet_ssm_d_conv 2 \
+  --hnet_ssm_d_state 32 \
   --hnet_ssm_expand 4 \
   --hnet_attn_num_heads 4 4 \
   --hnet_attn_rotary_emb_dim 0 0 \
   --hnet_attn_window_size -1 -1 \
-  --hnet_num_experts 8 \
-  --hnet_moe_loss_weight 0.02 \
+  --hnet_num_experts 16 \
+  --hnet_moe_loss_weight 0.05 \
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
-  --data_path ETTh1.csv \
-  --model_id ETTh1_96_336 \
+  --data_path ETTh2.csv \
+  --model_id ETTh2_96_336 \
   --model $model_name \
-  --d_model 128 \
-  --data ETTh1 \
+  --data ETTh2 \
   --features M \
   --seq_len 96 \
   --label_len 96 \
@@ -95,28 +94,27 @@ python -u run.py \
   --itr 1 \
   --batch_size 4 \
   --hnet_arch_layout '["m1", ["t1"], "m1"]' \
-  --hnet_d_model 128 256 \
-  --hnet_d_intermediate 0 1024\
-  --hnet_ssm_chunk_size 64 \
-  --hnet_ssm_d_conv 4 \
-  --hnet_ssm_d_state 128 \
+  --hnet_d_model 256 512\
+  --hnet_d_intermediate 256 512\
+  --hnet_ssm_chunk_size 32 \
+  --hnet_ssm_d_conv 2 \
+  --hnet_ssm_d_state 32 \
   --hnet_ssm_expand 4 \
   --hnet_attn_num_heads 4 4 \
   --hnet_attn_rotary_emb_dim 0 0 \
   --hnet_attn_window_size -1 -1 \
-  --hnet_num_experts 8 \
-  --hnet_moe_loss_weight 0.02 \
+  --hnet_num_experts 16 \
+  --hnet_moe_loss_weight 0.05 \
 
 
 python -u run.py \
   --task_name long_term_forecast \
   --is_training 1 \
   --root_path ./dataset/ETT-small/ \
-  --data_path ETTh1.csv \
-  --model_id ETTh1_96_720 \
+  --data_path ETTh2.csv \
+  --model_id ETTh2_96_720 \
   --model $model_name \
-  --d_model 128 \
-  --data ETTh1 \
+  --data ETTh2 \
   --features M \
   --seq_len 96 \
   --label_len 96 \
@@ -131,14 +129,14 @@ python -u run.py \
   --itr 1 \
   --batch_size 4 \
   --hnet_arch_layout '["m1", ["t1"], "m1"]' \
-  --hnet_d_model 128 256 \
-  --hnet_d_intermediate 0 1024\
-  --hnet_ssm_chunk_size 64 \
-  --hnet_ssm_d_conv 4 \
-  --hnet_ssm_d_state 128 \
+  --hnet_d_model 256 512\
+  --hnet_d_intermediate 256 512\
+  --hnet_ssm_chunk_size 32 \
+  --hnet_ssm_d_conv 2 \
+  --hnet_ssm_d_state 32 \
   --hnet_ssm_expand 4 \
   --hnet_attn_num_heads 4 4 \
   --hnet_attn_rotary_emb_dim 0 0 \
   --hnet_attn_window_size -1 -1 \
-  --hnet_num_experts 8 \
-  --hnet_moe_loss_weight 0.02 \
+  --hnet_num_experts 16 \
+  --hnet_moe_loss_weight 0.05 \

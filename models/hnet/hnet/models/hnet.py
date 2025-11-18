@@ -231,7 +231,6 @@ class HNet(nn.Module):
 
         if self.is_innermost:
             # if is innermost, then we need to make copy of the input latent. At the end we should return this exact input latent.
-            main_network_input = hidden_states.clone()
             hidden_states = self.main_network(
                 hidden_states,
                 cu_seqlens=cu_seqlens,
@@ -240,9 +239,10 @@ class HNet(nn.Module):
                 inference_params=inference_params.main_network_state,
                 **mixer_kwargs,
             )
+            main_network_output = hidden_states.clone()
             hidden_states = hidden_states[..., :D]
-  
-            return hidden_states, main_network_input, []
+
+            return hidden_states, main_network_output, []
 
         hidden_states = self.encoder(
             hidden_states,
@@ -268,7 +268,7 @@ class HNet(nn.Module):
             hidden_states, bpred_output.boundary_mask, cu_seqlens, mask=mask
         )
 
-        hidden_states, main_network_input, prev_boundary_predictions = self.main_network(
+        hidden_states, main_network_output, prev_boundary_predictions = self.main_network(
             hidden_states,
             cu_seqlens=next_cu_seqlens,
             max_seqlen=next_max_seqlen,
@@ -300,7 +300,7 @@ class HNet(nn.Module):
         )
 
         hidden_states = hidden_states[..., :D]
-        return hidden_states, main_network_input, [bpred_output, *prev_boundary_predictions]
+        return hidden_states, main_network_output, [bpred_output, *prev_boundary_predictions]
 
     def step(self, hidden_states, inference_params):
         D = hidden_states.shape[-1]
@@ -315,12 +315,13 @@ class HNet(nn.Module):
             )
 
         if self.is_innermost:
-            main_network_input = hidden_states.clone()
+
             hidden_states = self.main_network.step(
                 hidden_states, inference_params.main_network_state
             )
+            main_network_output = hidden_states.clone()
             hidden_states = hidden_states[..., :D]
-            return hidden_states, main_network_input, []
+            return hidden_states, main_network_output, []
 
         hidden_states = self.encoder.step(hidden_states, inference_params.encoder_state)
         hidden_states_for_residual = hidden_states.to(
@@ -336,12 +337,12 @@ class HNet(nn.Module):
         )
 
         if hidden_states_inner.shape[0] > 0:
-            hidden_states_inner, main_network_input, prev_boundary_predictions = self.main_network.step(
+            hidden_states_inner, main_network_output, prev_boundary_predictions = self.main_network.step(
                 hidden_states_inner, inference_params.main_network_state
             )
         else:
             prev_boundary_predictions = []
-            main_network_input = None
+            main_network_output = None
 
         hidden_states = self.dechunk_layer.step(
             hidden_states_inner,
@@ -357,4 +358,4 @@ class HNet(nn.Module):
         hidden_states = self.decoder.step(hidden_states, inference_params.decoder_state)
         hidden_states = hidden_states[..., :D]
 
-        return hidden_states, main_network_input, [bpred_output, *prev_boundary_predictions]
+        return hidden_states, main_network_output, [bpred_output, *prev_boundary_predictions]

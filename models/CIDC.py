@@ -3,19 +3,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import json
-from hnet.models.hnet import HNet
-# from layers.DC_Embed import TS_Dynamic_Chunking
-from hnet.models.config_hnet import HNetConfig, SSMConfig, AttnConfig
 from einops import rearrange
 from layers.Embed import PositionalEmbedding
-from layers.Transformer_EncDec import Encoder, EncoderLayer
+from layers.Transformer_EncDec import Decoder, DecoderLayer, Encoder, EncoderLayer, ConvLayer
 from layers.SelfAttention_Family import FullAttention, AttentionLayer
 from models.hnet.hnet.modules.dc import (
     RoutingModule,
     ChunkLayer,
     DeChunkLayer,
 )
-
 
 def rearrange_boundary_predictions(boundary_predictions, c_in):
     for i in range(len(boundary_predictions)):
@@ -53,6 +49,7 @@ class ByteEmbedding(nn.Module):
         return result
 
 
+
 class Model(nn.Module):
     
     def __init__(self, configs):
@@ -63,57 +60,41 @@ class Model(nn.Module):
         self.seq_len = configs.seq_len
         self.c_in = configs.enc_in
         self.d_model = configs.d_model
-        self.num_patches = configs.seq_len // configs.hnet_num_experts
+        self.bottleneck =  configs.patch_len
 
-        arch_layout = json.loads(configs.hnet_arch_layout)
-        ssm_cfg = SSMConfig(
-            d_conv=configs.hnet_ssm_d_conv,
-            expand=configs.hnet_ssm_expand,
-            d_state=configs.hnet_ssm_d_state,
-            chunk_size=configs.hnet_ssm_chunk_size,
-        )
-        attn_cfg = AttnConfig(
-            num_heads=configs.hnet_attn_num_heads,
-            rotary_emb_dim=configs.hnet_attn_rotary_emb_dim,
-            window_size=configs.hnet_attn_window_size,
-        )
-        hnet_cfg = HNetConfig(
-            arch_layout=arch_layout,
-            d_model=configs.hnet_d_model,
-            d_intermediate=configs.hnet_d_intermediate,
-            ssm_cfg=ssm_cfg,
-            attn_cfg=attn_cfg,
-        )
 
         self.value_embedding = ByteEmbedding(self.d_model)
-        self.position_embedding = PositionalEmbedding(self.d_model)
-
-        self.output_head = nn.Sequential(Transpose(2, 3), nn.Linear(self.seq_len, self.num_patches), nn.Flatten(start_dim=-2), 
-                                         nn.Linear(self.num_patches * self.d_model, self.pred_len))
-        self.residual_proj = nn.Linear(
-            self.d_model, self.d_model
-        )
+        self.global_embedding = nn.Linear(self.seq_len, self.d_model * self.bottleneck)
         self.routing = RoutingModule(d_model=self.d_model)
         self.chunk_layer = ChunkLayer()
-        self.dechunk_layer = DeChunkLayer(self.d_model)
-        self.dropout = nn.Dropout(configs.dropout)
+        self.decoder = Decoder(
+                [
+                    DecoderLayer(
+                        # Self-attention: Attend to decoder input sequence
+                        AttentionLayer(
+                            FullAttention(False, configs.factor, attention_dropout=configs.dropout,
+                                          output_attention=False),
+                            configs.d_model, configs.n_heads),
+                        # Cross-attention: Attend to encoder output
+                        AttentionLayer(
+                            FullAttention(False, configs.factor, attention_dropout=configs.dropout,
+                                          output_attention=False),
+                            configs.d_model, configs.n_heads),
+                        configs.d_model,
+                        configs.d_ff,
+                        dropout=configs.dropout,
+                        activation=configs.activation,
+                    )
+                    for l in range(configs.d_layers)  # d_layers=1 decoder layer
+                ],
+                norm_layer=torch.nn.LayerNorm(configs.d_model),
+            )
+        self.position_embedding1 = PositionalEmbedding(self.d_model)
+        self.position_embedding2 = PositionalEmbedding(self.d_model)
+
+        self.output_head = nn.Sequential(nn.Flatten(start_dim=-2), nn.Linear(self.bottleneck * self.d_model, self.pred_len))
 
 
-        # Encoder
-        self.encoder = Encoder(
-            [
-                EncoderLayer(
-                    AttentionLayer(
-                        FullAttention(False, configs.factor, attention_dropout=configs.dropout,
-                                      output_attention=False), configs.d_model, configs.n_heads),
-                    configs.d_model,
-                    configs.d_ff,
-                    dropout=configs.dropout,
-                    activation=configs.activation
-                ) for l in range(configs.e_layers)
-            ],
-            norm_layer=nn.Sequential(Transpose(1,2), nn.BatchNorm1d(configs.d_model), Transpose(1,2))
-        )
     
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Normalization from Non-stationary Transformer
@@ -132,12 +113,10 @@ class Model(nn.Module):
 
         x_enc = rearrange(x_enc, 'b l c -> (b c) l')
 
-        x_enc = self.value_embedding(x_enc) 
+        x_global = rearrange(self.global_embedding(x_enc), '(b c) (l d) -> (b c) l d', c=self.c_in, l=self.bottleneck, d=self.d_model)
 
+        hidden_states = self.value_embedding(x_enc) 
 
-        hidden_states = self.dropout(x_enc)
-
-        residual_connection = self.residual_proj(hidden_states) ################################## residual connection
         bpred_output = self.routing(
             hidden_states,
             mask=mask,
@@ -146,39 +125,24 @@ class Model(nn.Module):
         hidden_states, _ , _, _ = self.chunk_layer(
             hidden_states, bpred_output.boundary_mask, None, mask=mask
         )
-        hidden_states = hidden_states + self.position_embedding(hidden_states)
-
-
-        hidden_states, _ = self.encoder(hidden_states)
-        hidden_states = self.dechunk_layer(
-            hidden_states,
-            bpred_output.boundary_mask,
-            bpred_output.boundary_prob,
-            None,
-            mask=mask,
-            inference_params=None,
-        )
-        hidden_states += residual_connection
-        # print("after residual connection, hidden_states shape", hidden_states.shape)
-        
-        hidden_states = rearrange(hidden_states, '(b c) l d -> b c l d', c=self.c_in, d=self.d_model)
-        hnet_output = self.output_head(hidden_states)
-        # print("after output head, the shape of hnet_output is", hnet_output.shape)
+        # here, hidden_states is [(b c), num_chunks, d_model]
+        # print("after chunk layer, the shape of hidden_states is", hidden_states.shape)
+        # here, x_global is [(b c), bottleneck, d_model]
+        # print("after chunk layer, the shape of x_global is", x_global.shape)
+        decoder_output = self.decoder(x_global + self.position_embedding1(x_global), hidden_states + self.position_embedding2(hidden_states))
+        # print("after decoder, the shape of decoder_output is", decoder_output.shape)
+        decoder_output = self.output_head(decoder_output)
+        # print("after output head, the shape of decoder_output is", decoder_output.shape)
         # breakpoint()
-        hnet_output = hnet_output.permute(0, 2, 1)
+        decoder_output = rearrange(decoder_output, '(b c) l -> b l c', c=self.c_in)
+
     
 
-        hnet_output = hnet_output * stdev + means
+        decoder_output = decoder_output * stdev + means
 
         boundary_predictions = rearrange_boundary_predictions([bpred_output], self.c_in)
 
-        # breakpoint()
-
-        return hnet_output, boundary_predictions
-
-
-
-        
+        return decoder_output, boundary_predictions
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
         if self.task_name == 'long_term_forecast' or self.task_name == 'short_term_forecast':

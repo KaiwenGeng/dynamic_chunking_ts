@@ -118,7 +118,7 @@ def visual_boundary(gt, pred, boundary_mask, name='./pic/test.pdf', boundary_pro
         is_boundary_prob = boundary_prob[:,1]
         x_positions = np.arange(len(is_boundary_prob))
         # bar chart, but make the place where less than 0.5 orange where it is greater than 0.5 purple
-        colors = ['orange' if p < 0.5 else 'purple' for p in is_boundary_prob]
+        colors = ['orange' if p <= 0.5 else 'purple' for p in is_boundary_prob]
         ax2.bar(x_positions, is_boundary_prob, color=colors, alpha=0.6, width=1.0) 
         ax2.set_xlabel('Time Step')
         ax2.set_ylabel('Boundary Prob')

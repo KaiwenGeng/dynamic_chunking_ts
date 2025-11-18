@@ -1,6 +1,6 @@
 export CUDA_VISIBLE_DEVICES=0
 
-model_name=HNet
+model_name=ByteHnet
 
 python -u run.py \
   --task_name long_term_forecast \
@@ -23,17 +23,20 @@ python -u run.py \
   --des 'Exp' \
   --itr 1 \
   --hnet_arch_layout '["m1", ["T1"], "m1"]' \
-  --hnet_d_model 256 512 \
-  --hnet_d_intermediate 0 1024\
+  --hnet_d_model 32 512 \
+  --hnet_d_intermediate 0 2048\
   --hnet_ssm_chunk_size 32 \
   --hnet_ssm_d_conv 2 \
   --hnet_ssm_d_state 64 \
   --hnet_ssm_expand 2 \
-  --hnet_attn_num_heads 2 2 \
+  --hnet_attn_num_heads 4 4 \
   --hnet_attn_rotary_emb_dim 0 0 \
   --hnet_attn_window_size -1 -1 \
   --hnet_num_experts 8 \
   --hnet_moe_loss_weight 0.01 \
+  --learning_rate 0.01 \
+  --dropout 0.25 \
+
 
 
 python -u run.py \
@@ -57,17 +60,19 @@ python -u run.py \
   --des 'Exp' \
   --itr 1 \
   --hnet_arch_layout '["m1", ["T1"], "m1"]' \
-  --hnet_d_model 256 512 \
-  --hnet_d_intermediate 0 1024\
+  --hnet_d_model 32 512 \
+  --hnet_d_intermediate 0 2048\
   --hnet_ssm_chunk_size 32 \
   --hnet_ssm_d_conv 2 \
   --hnet_ssm_d_state 64 \
   --hnet_ssm_expand 2 \
-  --hnet_attn_num_heads 2 2 \
+  --hnet_attn_num_heads 4 4 \
   --hnet_attn_rotary_emb_dim 0 0 \
   --hnet_attn_window_size -1 -1 \
   --hnet_num_experts 8 \
   --hnet_moe_loss_weight 0.01 \
+  --learning_rate 0.01 \
+  --dropout 0.25 \
 
 python -u run.py \
   --task_name long_term_forecast \
@@ -90,18 +95,19 @@ python -u run.py \
   --des 'Exp' \
   --itr 1 \
   --hnet_arch_layout '["m1", ["T1"], "m1"]' \
-  --hnet_d_model 256 512 \
-  --hnet_d_intermediate 0 1024\
+  --hnet_d_model 32 512 \
+  --hnet_d_intermediate 0 2048\
   --hnet_ssm_chunk_size 32 \
   --hnet_ssm_d_conv 2 \
   --hnet_ssm_d_state 64 \
   --hnet_ssm_expand 2 \
-  --hnet_attn_num_heads 2 2 \
+  --hnet_attn_num_heads 4 4 \
   --hnet_attn_rotary_emb_dim 0 0 \
   --hnet_attn_window_size -1 -1 \
   --hnet_num_experts 8 \
   --hnet_moe_loss_weight 0.01 \
-
+  --learning_rate 0.01 \
+  --dropout 0.25 \
 
 python -u run.py \
   --task_name long_term_forecast \
@@ -124,14 +130,16 @@ python -u run.py \
   --des 'Exp' \
   --itr 1 \
   --hnet_arch_layout '["m1", ["T1"], "m1"]' \
-  --hnet_d_model 256 512 \
-  --hnet_d_intermediate 0 1024\
+  --hnet_d_model 32 512 \
+  --hnet_d_intermediate 0 2048\
   --hnet_ssm_chunk_size 32 \
   --hnet_ssm_d_conv 2 \
   --hnet_ssm_d_state 64 \
   --hnet_ssm_expand 2 \
-  --hnet_attn_num_heads 2 2 \
+  --hnet_attn_num_heads 4 4 \
   --hnet_attn_rotary_emb_dim 0 0 \
   --hnet_attn_window_size -1 -1 \
   --hnet_num_experts 8 \
   --hnet_moe_loss_weight 0.01 \
+  --learning_rate 0.01 \
+  --dropout 0.25 \

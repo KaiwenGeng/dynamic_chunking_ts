@@ -1,6 +1,6 @@
 export CUDA_VISIBLE_DEVICES=0
 
-model_name=HNet
+model_name=Fuse_DC_Transformer
 
 python -u run.py \
   --task_name long_term_forecast \
@@ -12,7 +12,7 @@ python -u run.py \
   --data ETTh1 \
   --features M \
   --seq_len 96 \
-  --label_len 96 \
+  --label_len 48 \
   --pred_len 96 \
   --e_layers 1 \
   --d_layers 1 \
@@ -21,18 +21,9 @@ python -u run.py \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
+  --n_heads 2 \
   --itr 1 \
-  --hnet_arch_layout '["m1", ["T1"], "m1"]' \
-  --hnet_d_model 256 512 \
-  --hnet_d_intermediate 0 1024\
-  --hnet_ssm_chunk_size 32 \
-  --hnet_ssm_d_conv 2 \
-  --hnet_ssm_d_state 64 \
-  --hnet_ssm_expand 2 \
-  --hnet_attn_num_heads 2 2 \
-  --hnet_attn_rotary_emb_dim 0 0 \
-  --hnet_attn_window_size -1 -1 \
-  --hnet_num_experts 8 \
+  --hnet_num_experts 16 \
   --hnet_moe_loss_weight 0.01 \
 
 
@@ -46,7 +37,7 @@ python -u run.py \
   --data ETTh1 \
   --features M \
   --seq_len 96 \
-  --label_len 96 \
+  --label_len 48 \
   --pred_len 192 \
   --e_layers 1 \
   --d_layers 1 \
@@ -55,18 +46,9 @@ python -u run.py \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
+  --n_heads 8 \
   --itr 1 \
-  --hnet_arch_layout '["m1", ["T1"], "m1"]' \
-  --hnet_d_model 256 512 \
-  --hnet_d_intermediate 0 1024\
-  --hnet_ssm_chunk_size 32 \
-  --hnet_ssm_d_conv 2 \
-  --hnet_ssm_d_state 64 \
-  --hnet_ssm_expand 2 \
-  --hnet_attn_num_heads 2 2 \
-  --hnet_attn_rotary_emb_dim 0 0 \
-  --hnet_attn_window_size -1 -1 \
-  --hnet_num_experts 8 \
+  --hnet_num_experts 16 \
   --hnet_moe_loss_weight 0.01 \
 
 python -u run.py \
@@ -79,7 +61,7 @@ python -u run.py \
   --data ETTh1 \
   --features M \
   --seq_len 96 \
-  --label_len 96 \
+  --label_len 48 \
   --pred_len 336 \
   --e_layers 1 \
   --d_layers 1 \
@@ -88,20 +70,10 @@ python -u run.py \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
+  --n_heads 8 \
   --itr 1 \
-  --hnet_arch_layout '["m1", ["T1"], "m1"]' \
-  --hnet_d_model 256 512 \
-  --hnet_d_intermediate 0 1024\
-  --hnet_ssm_chunk_size 32 \
-  --hnet_ssm_d_conv 2 \
-  --hnet_ssm_d_state 64 \
-  --hnet_ssm_expand 2 \
-  --hnet_attn_num_heads 2 2 \
-  --hnet_attn_rotary_emb_dim 0 0 \
-  --hnet_attn_window_size -1 -1 \
-  --hnet_num_experts 8 \
+  --hnet_num_experts 16 \
   --hnet_moe_loss_weight 0.01 \
-
 
 python -u run.py \
   --task_name long_term_forecast \
@@ -113,7 +85,7 @@ python -u run.py \
   --data ETTh1 \
   --features M \
   --seq_len 96 \
-  --label_len 96 \
+  --label_len 48 \
   --pred_len 720 \
   --e_layers 1 \
   --d_layers 1 \
@@ -122,16 +94,7 @@ python -u run.py \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
+  --n_heads 16 \
   --itr 1 \
-  --hnet_arch_layout '["m1", ["T1"], "m1"]' \
-  --hnet_d_model 256 512 \
-  --hnet_d_intermediate 0 1024\
-  --hnet_ssm_chunk_size 32 \
-  --hnet_ssm_d_conv 2 \
-  --hnet_ssm_d_state 64 \
-  --hnet_ssm_expand 2 \
-  --hnet_attn_num_heads 2 2 \
-  --hnet_attn_rotary_emb_dim 0 0 \
-  --hnet_attn_window_size -1 -1 \
-  --hnet_num_experts 8 \
+  --hnet_num_experts 16 \
   --hnet_moe_loss_weight 0.01 \

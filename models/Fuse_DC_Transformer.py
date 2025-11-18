@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import json
 from hnet.models.hnet import HNet
-# from layers.DC_Embed import TS_Dynamic_Chunking
 from hnet.models.config_hnet import HNetConfig, SSMConfig, AttnConfig
 from einops import rearrange
 from layers.Embed import PositionalEmbedding
@@ -19,9 +18,6 @@ from models.hnet.hnet.modules.dc import (
 
 def rearrange_boundary_predictions(boundary_predictions, c_in):
     for i in range(len(boundary_predictions)):
-        # print(boundary_predictions[i].boundary_mask.shape)
-        # print(boundary_predictions[i].boundary_prob.shape)
-        # print(boundary_predictions[i].selected_probs.shape)
         boundary_predictions[i].boundary_mask = rearrange(boundary_predictions[i].boundary_mask, '(b c) l -> b c l', c=c_in)
         boundary_predictions[i].boundary_prob = rearrange(boundary_predictions[i].boundary_prob, '(b c) l d -> b c l d', c=c_in, d=2)
         boundary_predictions[i].selected_probs = rearrange(boundary_predictions[i].selected_probs, '(b c) l d -> b c l d', c=c_in, d=1)
@@ -36,21 +32,6 @@ class Transpose(nn.Module):
         if self.contiguous: return x.transpose(*self.dims).contiguous()
         else: return x.transpose(*self.dims)
 
-class ByteEmbedding(nn.Module):
-    def __init__(self, d_model):
-        super(ByteEmbedding, self).__init__()
-        self.d_model = d_model
-        self.embed = nn.Embedding(256, d_model //4)
-        self.flatten = nn.Flatten(start_dim=-2)
-    def forward(self, x):
-        # make sure x is float32
-        assert x.dtype == torch.float32, "x must be float32"
-        # print("before embedding, the shape of x is", x.shape)
-        x = x.contiguous().view(torch.uint8).reshape(x.shape + (4,))
-        x = x.long()
-        result = self.embed(x)
-        result = self.flatten(result)
-        return result
 
 
 class Model(nn.Module):
@@ -63,7 +44,6 @@ class Model(nn.Module):
         self.seq_len = configs.seq_len
         self.c_in = configs.enc_in
         self.d_model = configs.d_model
-        self.num_patches = configs.seq_len // configs.hnet_num_experts
 
         arch_layout = json.loads(configs.hnet_arch_layout)
         ssm_cfg = SSMConfig(
@@ -84,12 +64,17 @@ class Model(nn.Module):
             ssm_cfg=ssm_cfg,
             attn_cfg=attn_cfg,
         )
+        self.bottleneck = configs.patch_len
 
-        self.value_embedding = ByteEmbedding(self.d_model)
+        self.value_embedding = nn.Sequential(
+            nn.Linear(self.seq_len, self.bottleneck),
+            nn.Dropout(configs.dropout),
+            nn.Linear(self.bottleneck, self.d_model * self.seq_len),
+        )
         self.position_embedding = PositionalEmbedding(self.d_model)
 
-        self.output_head = nn.Sequential(Transpose(2, 3), nn.Linear(self.seq_len, self.num_patches), nn.Flatten(start_dim=-2), 
-                                         nn.Linear(self.num_patches * self.d_model, self.pred_len))
+        self.output_head = nn.Sequential(Transpose(2, 3), nn.Linear(self.seq_len, self.bottleneck), nn.Flatten(start_dim=-2), 
+                                         nn.Linear(self.bottleneck * self.d_model, self.pred_len))
         self.residual_proj = nn.Linear(
             self.d_model, self.d_model
         )
@@ -117,9 +102,9 @@ class Model(nn.Module):
     
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Normalization from Non-stationary Transformer
-        assert self.label_len == self.seq_len, "Label len must be the same as the seq len"
-        assert torch.equal(x_enc, x_dec[:, :self.label_len, :]), "x_enc must be the same as the first part of x_dec"
-        assert torch.equal(x_mark_enc, x_mark_dec[:,:self.label_len,:]) , "x_mark_enc must be the same as the first part of x_mark_dec"
+        # assert self.label_len == self.seq_len, "Label len must be the same as the seq len"
+        # assert torch.equal(x_enc, x_dec[:, :self.label_len, :]), "x_enc must be the same as the first part of x_dec"
+        # assert torch.equal(x_mark_enc, x_mark_dec[:,:self.label_len,:]) , "x_mark_enc must be the same as the first part of x_mark_dec"
 
         means = x_enc.mean(1, keepdim=True).detach()
         x_enc = x_enc - means
@@ -133,11 +118,12 @@ class Model(nn.Module):
         x_enc = rearrange(x_enc, 'b l c -> (b c) l')
 
         x_enc = self.value_embedding(x_enc) 
+        x_enc = rearrange(x_enc, '(b c) (l d) -> (b c) l d', c=self.c_in, d=self.d_model)
 
 
         hidden_states = self.dropout(x_enc)
 
-        residual_connection = self.residual_proj(hidden_states) ################################## residual connection
+        residual_connection = self.residual_proj(hidden_states) 
         bpred_output = self.routing(
             hidden_states,
             mask=mask,
@@ -159,20 +145,16 @@ class Model(nn.Module):
             inference_params=None,
         )
         hidden_states += residual_connection
-        # print("after residual connection, hidden_states shape", hidden_states.shape)
+
         
         hidden_states = rearrange(hidden_states, '(b c) l d -> b c l d', c=self.c_in, d=self.d_model)
         hnet_output = self.output_head(hidden_states)
-        # print("after output head, the shape of hnet_output is", hnet_output.shape)
-        # breakpoint()
         hnet_output = hnet_output.permute(0, 2, 1)
     
 
         hnet_output = hnet_output * stdev + means
 
         boundary_predictions = rearrange_boundary_predictions([bpred_output], self.c_in)
-
-        # breakpoint()
 
         return hnet_output, boundary_predictions
 

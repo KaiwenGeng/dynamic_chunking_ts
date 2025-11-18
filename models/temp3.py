@@ -36,21 +36,6 @@ class Transpose(nn.Module):
         if self.contiguous: return x.transpose(*self.dims).contiguous()
         else: return x.transpose(*self.dims)
 
-class ByteEmbedding(nn.Module):
-    def __init__(self, d_model):
-        super(ByteEmbedding, self).__init__()
-        self.d_model = d_model
-        self.embed = nn.Embedding(256, d_model //4)
-        self.flatten = nn.Flatten(start_dim=-2)
-    def forward(self, x):
-        # make sure x is float32
-        assert x.dtype == torch.float32, "x must be float32"
-        # print("before embedding, the shape of x is", x.shape)
-        x = x.contiguous().view(torch.uint8).reshape(x.shape + (4,))
-        x = x.long()
-        result = self.embed(x)
-        result = self.flatten(result)
-        return result
 
 
 class Model(nn.Module):
@@ -63,7 +48,6 @@ class Model(nn.Module):
         self.seq_len = configs.seq_len
         self.c_in = configs.enc_in
         self.d_model = configs.d_model
-        self.num_patches = configs.seq_len // configs.hnet_num_experts
 
         arch_layout = json.loads(configs.hnet_arch_layout)
         ssm_cfg = SSMConfig(
@@ -84,12 +68,17 @@ class Model(nn.Module):
             ssm_cfg=ssm_cfg,
             attn_cfg=attn_cfg,
         )
+        self.bottleneck = 16
 
-        self.value_embedding = ByteEmbedding(self.d_model)
+        self.value_embedding = nn.Sequential(
+            nn.Linear(self.seq_len, self.bottleneck),
+            nn.Dropout(configs.dropout),
+            nn.Linear(self.bottleneck, self.d_model * self.seq_len),
+        )
         self.position_embedding = PositionalEmbedding(self.d_model)
 
-        self.output_head = nn.Sequential(Transpose(2, 3), nn.Linear(self.seq_len, self.num_patches), nn.Flatten(start_dim=-2), 
-                                         nn.Linear(self.num_patches * self.d_model, self.pred_len))
+        self.output_head = nn.Sequential(Transpose(2, 3), nn.Linear(self.seq_len, self.bottleneck), nn.Flatten(start_dim=-2), 
+                                         nn.Linear(self.bottleneck * self.d_model, self.pred_len))
         self.residual_proj = nn.Linear(
             self.d_model, self.d_model
         )
@@ -133,6 +122,7 @@ class Model(nn.Module):
         x_enc = rearrange(x_enc, 'b l c -> (b c) l')
 
         x_enc = self.value_embedding(x_enc) 
+        x_enc = rearrange(x_enc, '(b c) (l d) -> (b c) l d', c=self.c_in, d=self.d_model)
 
 
         hidden_states = self.dropout(x_enc)

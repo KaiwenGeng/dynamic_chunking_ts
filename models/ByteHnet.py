@@ -19,6 +19,33 @@ def rearrange_boundary_predictions(boundary_predictions, c_in):
         boundary_predictions[i].selected_probs = rearrange(boundary_predictions[i].selected_probs, '(b c) l d -> b c l d', c=c_in, d=1)
     return boundary_predictions
 
+
+class Transpose(nn.Module):
+    def __init__(self, *dims, contiguous=False): 
+        super().__init__()
+        self.dims, self.contiguous = dims, contiguous
+    def forward(self, x):
+        if self.contiguous: return x.transpose(*self.dims).contiguous()
+        else: return x.transpose(*self.dims)
+
+class ByteEmbedding(nn.Module):
+    def __init__(self, d_model):
+        super(ByteEmbedding, self).__init__()
+        self.d_model = d_model
+        self.embed = nn.Embedding(256, d_model //4)
+        self.flatten = nn.Flatten(start_dim=-2)
+    def forward(self, x):
+        # make sure x is float32
+        assert x.dtype == torch.float32, "x must be float32"
+        # print("before embedding, the shape of x is", x.shape)
+        x = x.contiguous().view(torch.uint8).reshape(x.shape + (4,))
+        x = x.long()
+        result = self.embed(x)
+        result = self.flatten(result)
+        return result
+
+
+
 class Model(nn.Module):
     
     def __init__(self, configs):
@@ -27,9 +54,9 @@ class Model(nn.Module):
         self.pred_len = configs.pred_len
         self.label_len = configs.label_len
         self.seq_len = configs.seq_len
-        # self.dc_embedding = TS_Dynamic_Chunking(configs.enc_in, configs.d_model, configs.dropout)
         self.c_in = configs.enc_in
-        self.d_model = configs.d_model
+        self.d_model = configs.hnet_d_model[0]
+        self.bottleneck =  configs.hnet_num_experts
 
         arch_layout = json.loads(configs.hnet_arch_layout)
         ssm_cfg = SSMConfig(
@@ -51,14 +78,11 @@ class Model(nn.Module):
             attn_cfg=attn_cfg,
         )
 
-        self.value_embedding = nn.Sequential(
-            nn.Linear(self.seq_len, self.seq_len  * self.d_model),
-        )
+        self.value_embedding = ByteEmbedding(self.d_model)
+        self.position_embedding = PositionalEmbedding(self.d_model)
 
-        self.position_embedding = PositionalEmbedding(configs.d_model)
-        self.output_head = nn.Linear(self.seq_len * self.d_model,  self.pred_len)
-
-
+        self.output_head = nn.Sequential(Transpose(2, 3), nn.Linear(self.seq_len, self.bottleneck), nn.Flatten(start_dim=-2), 
+                                         nn.Linear(self.bottleneck * self.d_model, self.pred_len))
         self.hnet = HNet(config=hnet_cfg, stage_idx=0, dtype=torch.bfloat16)
 
         self.dropout = nn.Dropout(configs.dropout)
@@ -78,11 +102,12 @@ class Model(nn.Module):
         mask[:, :] = True  
         mask = mask.repeat(self.c_in, 1)
 
-        x_enc = rearrange(x_enc, 'b l c -> b c l')
+        x_enc = rearrange(x_enc, 'b l c -> (b c) l')
 
         x_enc = self.value_embedding(x_enc) 
 
-        x_enc = rearrange(x_enc, 'b c (l d) -> (b c) l d', d=self.d_model)
+        # print("after value embedding, the shape of x_enc is", x_enc.shape)
+        # breakpoint()
 
         x_enc = x_enc + self.position_embedding(x_enc)
 
@@ -91,20 +116,31 @@ class Model(nn.Module):
         x_enc = x_enc.to(torch.bfloat16)
 
         self.hnet = self.hnet.to(torch.bfloat16)
-        hnet_output, main_network_input, boundary_predictions = self.hnet(
+        hnet_output, main_network_output, boundary_predictions = self.hnet(
             hidden_states=x_enc,
             mask=mask,
             inference_params=None,
         )
         boundary_predictions = rearrange_boundary_predictions(boundary_predictions, self.c_in)
+        # outer_prob = boundary_predictions[0].boundary_prob[:,:,:,1]
+        # outer_prob = outer_prob.to(torch.float32)
         hnet_output = hnet_output.to(torch.float32)
-        hnet_output = rearrange(hnet_output, '(b c) l d -> b c (l d)', c=self.c_in, d=self.d_model)
+        hnet_output = rearrange(hnet_output, '(b c) l d -> b c l d', c=self.c_in, d=self.d_model)
+
+        '''
+        outer_prob: boundary probability shape (B, C, seq_len), might help?
+        hnet_output: shape (B, C, seq_len, d_model)
+        want: (B, C, pred_len)
+        '''
 
         hnet_output = self.output_head(hnet_output)
+        # print("after output head, the shape of hnet_output is", hnet_output.shape)
+        # breakpoint()
         hnet_output = hnet_output.permute(0, 2, 1)
+    
 
         hnet_output = hnet_output * stdev + means
-        
+
         return hnet_output, boundary_predictions
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, mask=None):
