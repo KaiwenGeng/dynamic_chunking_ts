@@ -15,21 +15,21 @@ python -u run.py \
   --label_len 96 \
   --pred_len 96 \
   --e_layers 1 \
-  --d_layers 1 \
+  --d_layers 4 \
   --factor 3 \
   --enc_in 7 \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
   --itr 1 \
-  --d_model 32 \
+  --d_model 64 \
   --d_ff 256 \
-  --learning_rate 0.01 \
-  --dropout 0.25 \
+  --learning_rate 0.001 \
+  --dropout 0.1 \
   --patch_len 16 \
-
-
-
+  --n_heads 8 \
+  --batch_size 16 \
+  --hnet_moe_loss_weight 0.001 \
 
 python -u run.py \
   --task_name long_term_forecast \
@@ -44,19 +44,21 @@ python -u run.py \
   --label_len 96 \
   --pred_len 192 \
   --e_layers 1 \
-  --d_layers 1 \
+  --d_layers 4 \
   --factor 3 \
   --enc_in 7 \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
   --itr 1 \
-  --d_model 32 \
+  --d_model 64 \
   --d_ff 256 \
-  --learning_rate 0.01 \
-  --dropout 0.25 \
+  --learning_rate 0.001 \
+  --dropout 0.1 \
   --patch_len 16 \
-
+  --n_heads 8 \
+  --batch_size 16 \
+  --hnet_moe_loss_weight 0.01 \
 
 python -u run.py \
   --task_name long_term_forecast \
@@ -71,19 +73,21 @@ python -u run.py \
   --label_len 96 \
   --pred_len 336 \
   --e_layers 1 \
-  --d_layers 1 \
+  --d_layers 4 \
   --factor 3 \
   --enc_in 7 \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
   --itr 1 \
-  --d_model 32 \
+  --d_model 64 \
   --d_ff 256 \
-  --learning_rate 0.01 \
-  --dropout 0.25 \
+  --learning_rate 0.001 \
+  --dropout 0.1 \
   --patch_len 16 \
-
+  --n_heads 8 \
+  --batch_size 16 \
+  --hnet_moe_loss_weight 0.01 \
 
 python -u run.py \
   --task_name long_term_forecast \
@@ -98,16 +102,18 @@ python -u run.py \
   --label_len 96 \
   --pred_len 720 \
   --e_layers 1 \
-  --d_layers 1 \
+  --d_layers 4 \
   --factor 3 \
   --enc_in 7 \
   --dec_in 7 \
   --c_out 7 \
   --des 'Exp' \
   --itr 1 \
-  --d_model 32 \
+  --d_model 64 \
   --d_ff 256 \
-  --learning_rate 0.01 \
-  --dropout 0.25 \
+  --learning_rate 0.001 \
+  --dropout 0.1 \
   --patch_len 16 \
-
+  --n_heads 8 \
+  --batch_size 16 \
+  --hnet_moe_loss_weight 0.01 \

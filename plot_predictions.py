@@ -102,9 +102,9 @@ def plot_multi_model_predictions(settings, plot_interval=20, batch_size=32, outp
 if __name__ == '__main__':
     # Example usage
     settings = [
-        'long_term_forecast_ETTh1_96_96_PatchTST_ETTh1_ftM_sl96_ll48_pl96_dm512_nh2_el1_dl1_df2048_expand2_dc4_fc3_ebtimeF_dtTrue_Exp_0',
+        'long_term_forecast_ETTh1_96_720_TimeMixer_ETTh1_ftM_sl96_ll0_pl720_dm16_nh8_el2_dl1_df32_expand2_dc4_fc1_ebtimeF_dtTrue_Exp_0',
         # 'long_term_forecast_ETTh1_96_96_Fuse_DC_Transformer_ETTh1_ftM_sl96_ll48_pl96_dm512_nh2_el1_dl1_df2048_expand2_dc4_fc3_ebtimeF_dtTrue_Exp_0',
-        'long_term_forecast_ETTh1_96_96_ByteHnet_ETTh1_ftM_sl96_ll96_pl96_dm512_nh8_el1_dl1_df2048_expand2_dc4_fc3_ebtimeF_dtTrue_Exp_0',
+        'long_term_forecast_ETTh1_96_720_CIDC_ETTh1_ftM_sl96_ll96_pl720_dm256_nh8_el1_dl4_df1024_expand2_dc4_fc3_ebtimeF_dtTrue_Exp_0',
         # 'long_term_forecast_ETTh1_96_96_HNet_ETTh1_ftM_sl96_ll96_pl96_dm512_nh8_el1_dl1_df2048_expand2_dc4_fc3_ebtimeF_dtTrue_Exp_0',
         # 'long_term_forecast_ETTh1_96_96_TransformerDecoder_ETTh1_ftM_sl96_ll96_pl96_dm512_nh8_el1_dl1_df2048_expand2_dc4_fc3_ebtimeF_dtTrue_Exp_0'
     ]

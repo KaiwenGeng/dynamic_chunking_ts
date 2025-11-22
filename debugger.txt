@@ -40,4 +40,10 @@ pip install https://github.com/mjun0812/flash-attention-prebuild-wheels/releases
 pip install -e . --no-build-isolation
 
 
-python HPO/long_term_forecast/ETTh1.py --n_trials=50
+python HPO/long_term_forecast/CIDC/ETTh1.py --n_trials=200
+
+
+git config --global --unset-all core.askPass || true
+git config --global --unset-all credential.helper || true
+unset GIT_ASKPASS
+unset SSH_ASKPASS

@@ -1,7 +1,7 @@
 import sys
 import os
 # Add project root to Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 sys.path.insert(0, project_root)
 
 import argparse
@@ -22,9 +22,9 @@ FIXED_ARGS = {
     "task_name": "long_term_forecast",
     "is_training": 1,
     "root_path": "./dataset/ETT-small/",
-    "data_path": "ETTh2.csv",
-    "model": "ByteHnet",
-    "data": "ETTh2",
+    "data_path": "ETTh1.csv",
+    "model": "CIDC",
+    "data": "ETTh1",
     "features": "M",
     "seq_len": 96,
     "label_len": 96,
@@ -55,9 +55,9 @@ def create_parser():
                         help='model name, options: [Autoformer, Transformer, TimesNet]')
 
     # data loader
-    parser.add_argument('--data', type=str, required=True, default='ETTh2', help='dataset type')
+    parser.add_argument('--data', type=str, required=True, default='ETTh1', help='dataset type')
     parser.add_argument('--root_path', type=str, default='./data/ETT/', help='root path of the data file')
-    parser.add_argument('--data_path', type=str, default='ETTh2.csv', help='data file')
+    parser.add_argument('--data_path', type=str, default='ETTh1.csv', help='data file')
     parser.add_argument('--features', type=str, default='M',
                         help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
     parser.add_argument('--target', type=str, default='OT', help='target feature in S or MS task')
@@ -209,28 +209,22 @@ def objective(trial):
     
     # Sample hyperparameters using Optuna
     hparams = {
-        'hnet_arch_layout': trial.suggest_categorical('hnet_arch_layout', 
-            ['["m1", ["T1"], "m1"]']),
-        'hnet_d_model': trial.suggest_categorical('hnet_d_model', 
-            ['64_128', '128_256', '256_512']),  # Will parse below
-        'hnet_d_intermediate': trial.suggest_categorical('hnet_d_intermediate',
-            ['256_512', '512_1024']),  # Will parse below
-        'hnet_ssm_d_conv': trial.suggest_int('hnet_ssm_d_conv', 2, 4, step=2),
-        'hnet_ssm_d_state': trial.suggest_categorical('hnet_ssm_d_state', [16, 32, 64]),
-        'hnet_ssm_expand': trial.suggest_categorical('hnet_ssm_expand', [2, 4]),
-        'hnet_attn_num_heads': trial.suggest_categorical('hnet_attn_num_heads',
-            ['4_4', '8_8']),  # Will parse below
-        'hnet_num_experts': trial.suggest_categorical('hnet_num_experts', [4, 8, 16]),
-        'hnet_moe_loss_weight': trial.suggest_categorical('hnet_moe_loss_weight', [0.01, 0.025, 0.05, 0.1]),
-        'learning_rate': trial.suggest_categorical('learning_rate',  [0.0001, 0.0025, 0.0005]),
+        'patch_len': trial.suggest_categorical('patch_len', [4, 8, 16]),
+        'hnet_moe_loss_weight': trial.suggest_categorical('hnet_moe_loss_weight', [0.001,0.005,0.01]),
+        'learning_rate': trial.suggest_categorical('learning_rate',  [0.0001, 0.0005, 0.001, 0.005]),
         'batch_size': trial.suggest_categorical('batch_size', [32,16,8]),
-        'dropout': trial.suggest_categorical('dropout', [0.1, 0.2, 0.3]),
+        'dropout': trial.suggest_categorical('dropout', [0.1, 0.25, 0.3]),
+        'd_model': trial.suggest_categorical('d_model', [32, 64, 128]),
+        'd_ff': trial.suggest_categorical('d_ff', [256, 512]),
+        'n_heads': trial.suggest_categorical('n_heads', [2, 4, 8]),
+        'd_layers': trial.suggest_categorical('d_layers', [1, 2, 3, 4, 8]),
+        'lradj': trial.suggest_categorical('lradj', ['type1', 'type3', 'cosine']),
     }
     
     # Parse list parameters (stored as strings for categorical)
-    hparams['hnet_d_model'] = [int(x) for x in hparams['hnet_d_model'].split('_')]
-    hparams['hnet_d_intermediate'] = [int(x) for x in hparams['hnet_d_intermediate'].split('_')]
-    hparams['hnet_attn_num_heads'] = [int(x) for x in hparams['hnet_attn_num_heads'].split('_')]
+    # hparams['hnet_d_model'] = [int(x) for x in hparams['hnet_d_model'].split('_')]
+    # hparams['hnet_d_intermediate'] = [int(x) for x in hparams['hnet_d_intermediate'].split('_')]
+    # hparams['hnet_attn_num_heads'] = [int(x) for x in hparams['hnet_attn_num_heads'].split('_')]
     
     print("Sampled Hyperparameters:")
     for key, val in hparams.items():
@@ -259,7 +253,7 @@ def objective(trial):
         
         # Add pred_len and model_id
         cmd_args.extend(['--pred_len', str(pred_len)])
-        cmd_args.extend(['--model_id', f'ETTh2_96_{pred_len}'])
+        cmd_args.extend(['--model_id', f'ETTh1_96_{pred_len}'])
         
         # Add sampled hyperparameters
         for key, val in hparams.items():
@@ -270,8 +264,6 @@ def objective(trial):
                 cmd_args.extend([f'--{key}', str(val)])
         
         # Add other necessary args
-        cmd_args.extend(['--e_layers', '1'])
-        cmd_args.extend(['--d_layers', '1'])
         cmd_args.extend(['--factor', '3'])
         cmd_args.extend(['--des', 'HPO'])
         cmd_args.extend(['--itr', '1'])
@@ -379,7 +371,7 @@ def objective(trial):
     return avg_mse
 
 
-def save_study_results(study, output_file='hpo_results_etth2_optuna.json'):
+def save_study_results(study, output_file='hpo_results_etth1_optuna.json'):
     """Save Optuna study results to JSON"""
     results = {
         'best_trial': study.best_trial.number + 1,
@@ -422,11 +414,11 @@ if __name__ == '__main__':
     # Parse command line args for HPO settings
     import sys
     n_trials = 200  # Default number of trials
-    study_name = "ByteHnet_etth2"
+    study_name = "CIDC_etth1"
     
     # Save database in same directory as this script
     hpo_dir = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.join(hpo_dir, 'hpo_etth2.db')
+    db_path = os.path.join(hpo_dir, 'hpo_etth1.db')
     storage_name = f"sqlite:///{db_path}"
     
     # Check if user specified number of trials
@@ -434,7 +426,7 @@ if __name__ == '__main__':
         n_trials = int(sys.argv[1].split('=')[1])
     
     print(f"{'='*80}")
-    print(f"Starting Optuna HPO for ByteHnet on ETTh2")
+    print(f"Starting Optuna HPO for CIDC on ETTh1")
     print(f"{'='*80}")
     print(f"Number of trials: {n_trials}")
     print(f"Horizons: {HORIZON_LENGTHS}")
@@ -476,7 +468,7 @@ if __name__ == '__main__':
         print(f"  Horizon {key}: MSE = {val:.4f}")
     
     # Save results in same directory as script
-    output_path = os.path.join(hpo_dir, 'hpo_results_etth2_optuna.json')
+    output_path = os.path.join(hpo_dir, 'hpo_results_etth1_optuna.json')
     save_study_results(study, output_path)
     
     # Print top 5 trials
